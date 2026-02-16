@@ -103,36 +103,67 @@ datasets_fin/
 
 ```
 CV/
-├── README.md                 # 👈 이 문서
-├── CLAUDE.md                 # 개발 가이드라인
-├── requirements.txt          # 의존성
+├── README.md                      # 👈 이 문서
+├── CLAUDE.md                      # 개발 가이드라인
+├── requirements.txt               # 의존성
 │
-├── configs/                  # Hydra 설정
-│   ├── data/                # baseline_aug, transformer_384
-│   ├── model/               # resnet34, swin_base_384, deit_base_384 등
-│   └── training/            # baseline_768
+├── configs/                       # Hydra 설정
+│   ├── config.yaml               # 메인 설정
+│   ├── data/                     # Data Config
+│   │   ├── baseline_aug.yaml     # ⭐ CNN용 (768×768)
+│   │   └── transformer_384.yaml  # Transformer용 (384×384)
+│   ├── model/                    # Model Config (6종)
+│   │   ├── resnet34.yaml         # ⭐ Best 모델
+│   │   ├── resnet50.yaml
+│   │   ├── efficientnet_b4.yaml
+│   │   ├── convnext_base.yaml
+│   │   ├── swin_base_384.yaml
+│   │   └── deit_base_384.yaml
+│   └── training/                 # Training Config
+│       └── baseline_768.yaml     # ⭐ Best 설정
 │
-├── src/                     # 소스 코드
-│   ├── train.py             # ⭐ 훈련
-│   ├── inference.py         # 🔮 추론
-│   ├── ensemble.py          # 🎲 앙상블
-│   ├── data/                # DataModule
-│   ├── models/              # LightningModule
-│   └── utils/               # 유틸리티
+├── src/                          # 소스 코드
+│   ├── train.py                  # ⭐ 훈련 스크립트
+│   ├── inference.py              # 🔮 추론 (리더보드 제출)
+│   ├── ensemble.py               # 🎲 앙상블
+│   ├── data/
+│   │   └── datamodule.py        # DataModule
+│   ├── models/
+│   │   └── module.py            # LightningModule
+│   └── utils/
+│       ├── device.py            # 디바이스 자동 선택
+│       └── helpers.py           # 유틸리티
 │
 ├── scripts/
-│   └── analyze_results.py   # 📊 결과 분석
+│   └── analyze_results.py        # 📊 결과 분석 (Confusion Matrix)
 │
-├── docs/                    # 📚 문서
-│   ├── PROJECT_GUIDE.md     # ⭐ 메인 가이드 (필독)
-│   └── archive/             # PDCA 문서 아카이브
+├── docs/                         # 📚 문서
+│   ├── README.md                 # 프로젝트 개요
+│   ├── PROJECT_GUIDE.md          # ⭐ 완료 가이드 (필독)
+│   └── archive/2026-02/CV/      # PDCA 문서 아카이브
+│       ├── design.md            # 설계 문서
+│       ├── analysis.md          # Gap Analysis (95%)
+│       └── report.md            # 완료 보고서
 │
-├── datasets_fin/            # 데이터셋
+├── datasets_fin/                 # 데이터셋
+│   ├── train.csv, test.csv
+│   ├── train/ (1,570장)
+│   └── test/ (3,141장)
 │
-├── checkpoints/             # 체크포인트
-│   └── champion/            # Best 모델 ⭐
+├── checkpoints/                  # 모델 체크포인트
+│   ├── YYYYMMDD_run_XXX/         # 실험별 디렉토리
+│   │   ├── experiment_info.json # 실험 정보
+│   │   └── epoch=XX-val_f1=X.XXX.ckpt
+│   └── champion/                 # ⭐ Best 모델 (F1 0.993)
+│       ├── best_model.ckpt
+│       └── champion_info.json
 │
-└── analysis_results/        # 분석 결과
+├── outputs/                      # Hydra 실행 로그 (single run)
+│   └── YYYY-MM-DD/HH-MM-SS/
+│       └── .hydra/              # Config 스냅샷
+│
+└── analysis_results/             # 분석 결과
+    └── confusion_matrix.png
 ```
 
 ---
@@ -181,6 +212,17 @@ python scripts/analyze_results.py --checkpoint checkpoints/champion/best_model.c
 # 출력: analysis_results/confusion_matrix.png
 ```
 
+### Hydra Multi-Run (하이퍼파라미터 스윕)
+```bash
+# 여러 모델 동시 실험
+python src/train.py --multirun \
+  model=resnet34,resnet50 \
+  data=baseline_aug,transformer_384
+
+# 결과: multirun/YYYY-MM-DD/HH-MM-SS/{0,1,2,3}/
+# 각 실험마다 .hydra/config.yaml에 설정 저장 (재현성)
+```
+
 ---
 
 ## 🎯 핵심 성공 요인
@@ -189,6 +231,77 @@ python scripts/analyze_results.py --checkpoint checkpoints/champion/best_model.c
 2. **Aspect Ratio 보존** - LongestMaxSize + PadIfNeeded 2단계 전략
 3. **문서 특화 Augmentation** - CLAHE, Perspective, Sharpen 등 7종
 4. **Class Weights** - 불균형 데이터 처리 성공
+
+---
+
+## 💡 주요 기능
+
+### 1. Aspect Ratio 보존 전략 ⭐
+
+직사각형 이미지를 왜곡 없이 처리하는 핵심 기술:
+
+```yaml
+# configs/data/baseline_aug.yaml
+train_augmentations:
+  # 1단계: 긴 쪽을 768로 맞춤 (비율 유지)
+  - type: LongestMaxSize
+    max_size: 768
+
+  # 2단계: 부족한 부분 흰색 패딩
+  - type: PadIfNeeded
+    min_height: 768
+    min_width: 768
+    value: [255, 255, 255]  # 문서 배경색
+```
+
+**효과**: 정보 손실 최소화 → F1 0.993 달성의 핵심 요인
+
+### 2. Hydra Multi-Run 지원
+
+하이퍼파라미터 스윕 자동화:
+
+```bash
+# 여러 설정 동시 실험
+python src/train.py --multirun \
+  model=resnet34,resnet50,swin_base_384 \
+  data.img_size=384,768
+
+# 결과 자동 저장
+# multirun/YYYY-MM-DD/HH-MM-SS/
+#   ├── 0/  (resnet34 + 384)
+#   ├── 1/  (resnet34 + 768)
+#   ├── 2/  (resnet50 + 384)
+#   └── 3/  (resnet50 + 768)
+```
+
+각 실험의 config가 `.hydra/`에 자동 저장되어 **완벽한 재현성** 보장
+
+### 3. Champion 모델 자동 추적
+
+최고 성능 모델을 자동으로 관리:
+
+```json
+// checkpoints/champion/champion_info.json
+{
+  "val_f1": 0.993,
+  "checkpoint_path": "checkpoints/20260215_run_002/...",
+  "updated_at": "2026-02-15T18:00:00",
+  "model_name": "resnet34"
+}
+```
+
+새로운 모델이 더 좋은 성능을 내면 자동으로 `champion/` 업데이트
+
+### 4. 실험 자동 관리
+
+날짜 + run_id 시스템으로 체계적 관리:
+
+```
+checkpoints/
+├── 20260215_run_001/  (ResNet34, F1 0.993)
+├── 20260215_run_002/  (ResNet50, F1 0.975)
+└── champion/          → run_001 (자동 링크)
+```
 
 ---
 
@@ -235,6 +348,13 @@ python src/train.py \
   training.learning_rate=5e-4 \
   training.epochs=30 \
   training.batch_size=8
+```
+
+### Hydra 출력 디렉토리 정리
+```bash
+# outputs/, multirun/ 디렉토리는 Hydra가 자동 생성
+# 필요 없으면 삭제 가능 (.gitignore에 포함됨)
+rm -rf outputs/ multirun/
 ```
 
 ---
