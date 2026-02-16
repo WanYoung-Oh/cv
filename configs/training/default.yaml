@@ -2,13 +2,14 @@
 
 # 하이퍼파라미터
 learning_rate: 1e-3
-weight_decay: 1e-4
+weight_decay: 0.05
 epochs: 50
 batch_size: 32
 num_workers: 4
+# accumulate_grad_batches: 2 # 물리적 배치를 줄인 만큼 누적하여 안정성 확보
 
 # 옵티마이저
-optimizer: "adam"
+optimizer: "adamw"
 
 # 스케줄러
 scheduler: "cosine"
@@ -24,8 +25,8 @@ pin_memory: true
 early_stopping:
   enabled: true
   patience: 10
-  monitor: "val_loss"
-  mode: "min"
+  monitor: "val_f1"
+  mode: "max"
 
 # 체크포인트
 checkpoint:
@@ -34,5 +35,5 @@ checkpoint:
   mode: "max"
 
 # 로깅
-log_interval: 100
-val_check_interval: 0.5  # 매 에포크의 50% 마다 검증
+log_interval: 20          # 배치가 작아졌으므로 더 자주 로깅
+val_check_interval: 1.0   # 1,500장이므로 매 에포크 끝에 검증해도 충분

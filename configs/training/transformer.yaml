@@ -7,8 +7,8 @@ epochs: 50
 num_workers: 4
 
 # 옵티마이저
-optimizer: adamw
-weight_decay: 1e-5
+optimizer: "adamw"
+weight_decay: 0.1         # 데이터가 적으므로 0.05에서 상향 고려
 
 # 스케줄러
 warmup_epochs: 10    # Transformer는 warm-up이 중요합니다 (CNN: 5)
@@ -22,14 +22,14 @@ pin_memory: true
 
 # 조기 종료
 early_stopping:
-  monitor: val_f1
+  monitor: "val_f1"
   patience: 15
-  mode: max
+  mode: "max"
 
 # 체크포인트
 checkpoint:
-  monitor: val_f1
-  mode: max
+  monitor: "val_f1"
+  mode: "max"
   save_top_k: 3
 
 # 로깅

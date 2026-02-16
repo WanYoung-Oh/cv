@@ -113,11 +113,14 @@ hydra:
     - hydra.mode=RUN
     task:
     - data=baseline_aug
-    - data.test_csv=sample_submission.csv
+    - model=efficientnet_b4
+    - training=baseline_768
+    - training.batch_size=8
+    - data.img_size=512
   job:
-    name: inference
+    name: train
     chdir: null
-    override_dirname: data.test_csv=sample_submission.csv,data=baseline_aug
+    override_dirname: data.img_size=512,data=baseline_aug,model=efficientnet_b4,training.batch_size=8,training=baseline_768
     id: ???
     num: ???
     config_name: config
@@ -142,11 +145,11 @@ hydra:
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /Users/owy/Dev/CV/outputs/2026-02-15/18-29-38
+    output_dir: /Users/owy/Dev/CV/outputs/2026-02-16/15-35-54
     choices:
       data: baseline_aug
-      training: default
-      model: resnet34
+      training: baseline_768
+      model: efficientnet_b4
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default

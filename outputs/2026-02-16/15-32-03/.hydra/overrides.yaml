@@ -1,0 +1,4 @@
+- data=baseline_aug
+- model=efficientnet_b4
+- training=baseline_768
+- training.batch_size=8

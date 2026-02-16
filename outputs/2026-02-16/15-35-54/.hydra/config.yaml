@@ -1,16 +1,12 @@
 model:
-  model_name: resnet34
+  model_name: efficientnet_b4
   pretrained: true
   num_classes: 17
-  in_channels: 3
-  arch:
-    depth: 34
-    width_multiplier: 1.0
 training:
   learning_rate: 0.001
   weight_decay: 0.0001
   epochs: 50
-  batch_size: 32
+  batch_size: 8
   num_workers: 4
   optimizer: adam
   scheduler: cosine
@@ -28,10 +24,10 @@ training:
     save_top_k: 3
     monitor: val_f1
     mode: max
-  log_interval: 100
+  log_interval: 50
   val_check_interval: 0.5
 data:
-  img_size: 768
+  img_size: 512
   normalization:
     mean:
     - 0.485
@@ -129,7 +125,7 @@ data:
   use_class_weights: true
   root_path: datasets_fin/
   train_csv: train.csv
-  test_csv: sample_submission.csv
+  test_csv: test.csv
   meta_csv: meta.csv
   sample_submission_csv: sample_submission.csv
   train_image_dir: train/

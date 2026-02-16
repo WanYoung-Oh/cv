@@ -3,13 +3,13 @@
 
 # 하이퍼파라미터
 learning_rate: 1e-3 # pretrained model 적용 시 1e-4 or 1e-5 고려
-weight_decay: 1e-4
+weight_decay: 0.05
 epochs: 50
 batch_size: 16  # 768x768 크기로 인해 32 → 16으로 감소
 num_workers: 4
 
 # 옵티마이저
-optimizer: "adam" # adamw로 일반화 성능 향상 고려
+optimizer: "adamw" # adamw로 일반화 성능 향상 고려
 
 # 스케줄러
 scheduler: "cosine"
@@ -25,7 +25,7 @@ pin_memory: true
 early_stopping:
   enabled: true
   patience: 10
-  monitor: "val_loss" # 혹은 'val_f1' 고려
+  monitor: "val_f1" # 혹은 'val_f1' 고려
   mode: "min"
 
 # 체크포인트
