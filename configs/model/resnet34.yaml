@@ -1,0 +1,11 @@
+# ResNet34 모델 설정
+
+model_name: "resnet34"
+pretrained: true
+num_classes: 17
+in_channels: 3
+
+# 모델별 특성
+arch:
+  depth: 34
+  width_multiplier: 1.0

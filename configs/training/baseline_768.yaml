@@ -1,0 +1,42 @@
+# Baseline Training Config (768x768)
+# 고해상도 이미지로 인해 batch size 감소
+
+# 하이퍼파라미터
+learning_rate: 1e-3 # pretrained model 적용 시 1e-4 or 1e-5 고려
+weight_decay: 1e-4
+epochs: 50
+batch_size: 16  # 768x768 크기로 인해 32 → 16으로 감소
+num_workers: 4
+
+# 옵티마이저
+optimizer: "adam" # adamw로 일반화 성능 향상 고려
+
+# 스케줄러
+scheduler: "cosine"
+warmup_epochs: 5
+warmup_start_factor: 0.01
+scheduler_eta_min: 1e-6
+
+# 데이터 로더
+drop_last: true
+pin_memory: true
+
+# 조기 종료
+early_stopping:
+  enabled: true
+  patience: 10
+  monitor: "val_loss" # 혹은 'val_f1' 고려
+  mode: "min"
+
+# 체크포인트
+checkpoint:
+  save_top_k: 3
+  monitor: "val_f1"
+  mode: "max"
+
+# 로깅
+log_interval: 50  # 배치가 적으므로 로깅 간격 감소
+val_check_interval: 0.5
+
+# Gradient Accumulation (Optional - 메모리 부족 시)
+# accumulate_grad_batches: 2  # effective batch_size = 16 * 2 = 32

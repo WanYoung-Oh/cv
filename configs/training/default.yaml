@@ -1,0 +1,38 @@
+# 기본 학습 설정
+
+# 하이퍼파라미터
+learning_rate: 1e-3
+weight_decay: 1e-4
+epochs: 50
+batch_size: 32
+num_workers: 4
+
+# 옵티마이저
+optimizer: "adam"
+
+# 스케줄러
+scheduler: "cosine"
+warmup_epochs: 5
+warmup_start_factor: 0.01  # Warmup 시작 factor (0.01 = lr의 1%부터 시작)
+scheduler_eta_min: 1e-6    # CosineAnnealing 최소 lr
+
+# 데이터 로더
+drop_last: true
+pin_memory: true
+
+# 조기 종료
+early_stopping:
+  enabled: true
+  patience: 10
+  monitor: "val_loss"
+  mode: "min"
+
+# 체크포인트
+checkpoint:
+  save_top_k: 3
+  monitor: "val_f1"
+  mode: "max"
+
+# 로깅
+log_interval: 100
+val_check_interval: 0.5  # 매 에포크의 50% 마다 검증

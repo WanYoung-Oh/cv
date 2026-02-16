@@ -1,0 +1,10 @@
+# ConvNeXt-Base
+# Paper: https://arxiv.org/abs/2201.03545
+# 최신 순수 CNN 아키텍처, Vision Transformer 성능 달성
+
+model_name: convnext_base
+pretrained: true
+num_classes: 17
+
+# ConvNeXt는 모던 CNN으로, Transformer 수준의 성능을 제공하면서도
+# CNN의 효율성과 안정성을 유지합니다.

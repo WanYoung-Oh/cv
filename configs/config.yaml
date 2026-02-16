@@ -1,0 +1,46 @@
+# Document Image Classification - Hydra Config
+
+defaults:
+  - model: resnet34
+  - training: default
+  - data: default
+
+# 실험명
+experiment_name: "doc_image_classification"
+
+# WanDB 설정
+wandb:
+  # 프로젝트명 (환경 변수 우선, 없으면 기본값 사용)
+  project: ${oc.env:WANDB_PROJECT,doc_image_classification}
+  # 엔티티 (사용자명/팀명, 환경 변수 우선)
+  entity: ${oc.env:WANDB_ENTITY,null}
+  # 모드: online, offline, disabled
+  mode: ${oc.env:WANDB_MODE,online}
+  # 모델 저장 여부
+  log_model: false
+
+# 프로젝트 루트
+project_root: ${hydra:runtime.cwd}
+
+# 데이터 경로
+data:
+  root_path: "datasets_fin/"
+  train_csv: "train.csv"
+  test_csv: "test.csv"
+  meta_csv: "meta.csv"
+  sample_submission_csv: "sample_submission.csv"
+  train_image_dir: "train/"
+  test_image_dir: "test/"
+
+# 모델 저장 경로
+checkpoint_dir: "checkpoints"
+logs_dir: "logs"
+
+# 재현성
+seed: 42
+
+# 디바이스
+device: "cuda"
+
+# 디버그 모드
+debug: false

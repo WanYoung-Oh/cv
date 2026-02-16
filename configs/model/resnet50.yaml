@@ -1,0 +1,10 @@
+# ResNet50 모델 설정
+
+model_name: "resnet50"
+pretrained: true
+num_classes: 17
+in_channels: 3
+
+arch:
+  depth: 50
+  width_multiplier: 1.0

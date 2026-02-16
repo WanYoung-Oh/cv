@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Environment Variables
+.env
+
+# Models
+models/
+*.pth
+*.pt
+*.ckpt
+*.pkl
+*.h5
+
+# Logs
+logs/
+*.log
+
+# W&B
+wandb/
+
+# Data
+data/train/
+data/test/
+datasets_fin/
+*.csv
+!.gitkeep
+
+# Checkpoints
+checkpoints/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# AutoGluon
+AutogluonModels/

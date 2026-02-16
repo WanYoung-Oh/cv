@@ -1,0 +1,11 @@
+# Swin Transformer-Base-384
+# Paper: https://arxiv.org/abs/2103.14030
+# Window size 12 (384/12 = 32 patches per window)
+
+model_name: swin_base_patch4_window12_384
+pretrained: true
+num_classes: 17
+
+# Swin-384는 고해상도 입력에 최적화
+# Window size=12 (384×384 입력에 최적)
+# 문서 이미지의 세부 정보를 잘 포착합니다
