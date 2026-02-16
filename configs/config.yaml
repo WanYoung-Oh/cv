@@ -4,6 +4,7 @@ defaults:
   - model: resnet34
   - training: default
   - data: default
+  - inference: default
 
 # 실험명
 experiment_name: "doc_image_classification"

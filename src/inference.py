@@ -57,6 +57,67 @@ def get_champion_checkpoint(checkpoint_dir: Path) -> Optional[Path]:
     return None
 
 
+def find_checkpoint_by_run_id(checkpoint_dir: Path, run_id: str) -> Optional[Path]:
+    """특정 run_id의 best checkpoint 찾기
+
+    Args:
+        checkpoint_dir: 체크포인트 베이스 디렉토리
+        run_id: 실험 run ID (예: 20260216_run_001)
+
+    Returns:
+        해당 run의 best checkpoint 경로 또는 None
+    """
+    run_dir = checkpoint_dir / run_id
+
+    if not run_dir.exists():
+        log.error(f"Run ID '{run_id}'가 존재하지 않습니다: {run_dir}")
+        log.info("\n사용 가능한 Run ID 목록:")
+        for exp_dir in checkpoint_dir.iterdir():
+            if exp_dir.is_dir() and exp_dir.name != "champion":
+                log.info(f"  - {exp_dir.name}")
+        return None
+
+    # experiment_info.json에서 best_checkpoint 정보 읽기
+    exp_info_path = run_dir / "experiment_info.json"
+    if exp_info_path.exists():
+        with open(exp_info_path, 'r') as f:
+            exp_info = json.load(f)
+
+        log.info(f"📋 Run ID '{run_id}' 정보:")
+        log.info(f"   모델: {exp_info.get('model_name', 'N/A')}")
+        log.info(f"   시작: {exp_info.get('started_at', 'N/A')}")
+        log.info(f"   val_f1: {exp_info.get('val_f1', 'N/A')}")
+
+        best_ckpt_path = exp_info.get('best_checkpoint')
+        if best_ckpt_path and Path(best_ckpt_path).exists():
+            return Path(best_ckpt_path)
+
+    # experiment_info가 없거나 best_checkpoint 정보가 없으면
+    # 파일명에서 가장 높은 val_f1을 가진 checkpoint 찾기
+    log.info("experiment_info.json에서 정보를 찾을 수 없습니다. 파일명에서 탐색 중...")
+    ckpt_files = list(run_dir.glob("*.ckpt"))
+    best_checkpoint = None
+    best_metric = 0.0
+
+    for ckpt_file in ckpt_files:
+        try:
+            filename = ckpt_file.stem
+            if 'val_f1=' in filename:
+                val_f1_str = filename.split('val_f1=')[1]
+                val_f1 = float(val_f1_str)
+
+                if val_f1 > best_metric:
+                    best_metric = val_f1
+                    best_checkpoint = ckpt_file
+        except (ValueError, IndexError):
+            continue
+
+    if best_checkpoint:
+        log.info(f"최고 성능 체크포인트 발견: val_f1={best_metric:.4f}")
+
+    return best_checkpoint
+
+
 def find_best_checkpoint(checkpoint_dir: Path) -> Optional[Path]:
     """모든 실험 중 최고 성능 체크포인트 찾기
 
@@ -118,12 +179,24 @@ def main(cfg: DictConfig) -> None:
     """메인 inference 함수
 
     Hydra config로 inference 설정 관리:
-        inference.checkpoint: 체크포인트 경로 (선택사항)
+        inference.checkpoint: 체크포인트 경로 (선택사항, 최우선)
+        inference.run_id: 실험 run ID (선택사항, 2순위)
         inference.output: 출력 파일 경로 (기본값: pred.csv)
+
+    사용 예시:
+        # Champion 모델 사용 (기본)
+        python src/inference.py
+
+        # 특정 run_id 사용
+        python src/inference.py inference.run_id=20260216_run_001
+
+        # 직접 checkpoint 경로 지정
+        python src/inference.py inference.checkpoint=checkpoints/20260216_run_001/epoch=10-val_f1=0.950.ckpt
     """
     # Hydra config에서 inference 설정 읽기
     inference_cfg = cfg.get('inference', {})
     checkpoint_path = inference_cfg.get('checkpoint', None)
+    run_id = inference_cfg.get('run_id', None)
     output_path = inference_cfg.get('output', 'pred.csv')
 
     log.info("=" * 70)
@@ -139,24 +212,39 @@ def main(cfg: DictConfig) -> None:
                 f"체크포인트 디렉토리 '{checkpoint_dir}'가 존재하지 않습니다."
             )
 
-        # 1순위: 챔피언 모델
-        champion_ckpt = get_champion_checkpoint(checkpoint_dir)
-        if champion_ckpt:
-            checkpoint_path = str(champion_ckpt)
-            log.info("챔피언 모델 사용 ✓")
-        else:
-            # 2순위: 모든 실험 중 최고 성능 모델
-            log.info("챔피언 모델이 없습니다. 최고 성능 모델 탐색 중...")
-            best_ckpt = find_best_checkpoint(checkpoint_dir)
+        # 1순위: run_id 지정
+        if run_id:
+            log.info(f"Run ID '{run_id}'의 모델 탐색 중...")
+            run_ckpt = find_checkpoint_by_run_id(checkpoint_dir, run_id)
 
-            if best_ckpt:
-                checkpoint_path = str(best_ckpt)
+            if run_ckpt:
+                checkpoint_path = str(run_ckpt)
+                log.info(f"✅ Run ID '{run_id}' 모델 사용")
             else:
                 raise FileNotFoundError(
-                    f"체크포인트를 찾을 수 없습니다.\n"
-                    f"'{checkpoint_dir}' 디렉토리에 학습된 모델이 없습니다.\n"
-                    f"먼저 'python src/train.py'로 모델을 학습하세요."
+                    f"Run ID '{run_id}'의 체크포인트를 찾을 수 없습니다.\n"
+                    f"'{checkpoint_dir}' 디렉토리를 확인하세요."
                 )
+        else:
+            # 2순위: 챔피언 모델
+            champion_ckpt = get_champion_checkpoint(checkpoint_dir)
+            if champion_ckpt:
+                checkpoint_path = str(champion_ckpt)
+                log.info("✅ 챔피언 모델 사용")
+            else:
+                # 3순위: 모든 실험 중 최고 성능 모델
+                log.info("챔피언 모델이 없습니다. 최고 성능 모델 탐색 중...")
+                best_ckpt = find_best_checkpoint(checkpoint_dir)
+
+                if best_ckpt:
+                    checkpoint_path = str(best_ckpt)
+                    log.info("✅ 최고 성능 모델 사용")
+                else:
+                    raise FileNotFoundError(
+                        f"체크포인트를 찾을 수 없습니다.\n"
+                        f"'{checkpoint_dir}' 디렉토리에 학습된 모델이 없습니다.\n"
+                        f"먼저 'python src/train.py'로 모델을 학습하세요."
+                    )
 
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"체크포인트 파일을 찾을 수 없습니다: {checkpoint_path}")

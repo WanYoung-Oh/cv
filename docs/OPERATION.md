@@ -55,9 +55,10 @@ python src/train.py \
 
 | 카테고리 | 옵션 | 설명 |
 |----------|------|------|
-| **모델** | resnet34, resnet50, efficientnet_b4, convnext_base, swin_base_384, deit_base_384 | 6종 |
-| **데이터** | baseline_aug (768×768), transformer_384 (384×384) | 2종 |
+| **모델** | resnet34, resnet50, efficientnet_b4, convnext_base, swin_base_384, deit_base_384, swin_base_224, deit_base_224 | 8종 |
+| **데이터** | baseline_aug (768×768), transformer_384 (384×384), transformer_224 (224×224) | 3종 |
 | **학습** | baseline_768, default, efficientnet, transformer | 4종 |
+| **Inference** | champion (자동), run_id (특정 실험), checkpoint (직접 경로) | 3가지 방식 |
 
 ---
 
@@ -167,6 +168,8 @@ python src/train.py \
 
 #### 전략 3: Transformer 실험
 
+##### 384×384 해상도 (고품질, 문서 디테일 보존)
+
 ```bash
 # Swin-Base-384 (안정적)
 python src/train.py \
@@ -182,6 +185,29 @@ python src/train.py \
   training=baseline_768 \
   training.batch_size=16
 ```
+
+##### 224×224 해상도 (빠른 실험, 메모리 효율)
+
+```bash
+# Swin-Base-224 (빠른 실험)
+python src/train.py \
+  model=swin_base_224 \
+  data=transformer_224 \
+  training.batch_size=32
+
+# DeiT-Base-224 (빠른 실험)
+python src/train.py \
+  model=deit_base_224 \
+  data=transformer_224 \
+  training.batch_size=32
+```
+
+##### 해상도별 비교
+
+| 해상도 | Window/Patch | 장점 | 단점 | 배치 크기 |
+|--------|--------------|------|------|----------|
+| **224** | 7x7 / 14x14 | 빠른 학습, 메모리 효율 | 세부 정보 손실 | 16-32 |
+| **384** | 12x12 / 24x24 | 문서 디테일 보존 | 느림, 메모리 많이 사용 | 8-16 |
 
 **장점**:
 - ✅ 24GB로 안전
@@ -623,9 +649,11 @@ python src/train.py \
 
 ---
 
-### Transformer 모델 (384×384 권장)
+### Transformer 모델
 
-#### Swin-Base-384 ⭐
+#### Swin Transformer (224 vs 384)
+
+##### Swin-Base-384 (고품질) ⭐⭐
 
 ```bash
 # 기본 설정 (추천)
@@ -651,14 +679,41 @@ python src/train.py \
 - Window-based Self-Attention (Window 12)
 - Hierarchical architecture
 - 384×384 입력 최적화
+- 문서 디테일 보존
 
 **예상 성능**:
 - F1-Macro: 0.95~0.97
 - Accuracy: 0.96~0.98
 
+##### Swin-Base-224 (빠른 실험) ⭐
+
+```bash
+# 빠른 실험용
+python src/train.py \
+  data=transformer_224 \
+  model=swin_base_224 \
+  training.batch_size=32
+```
+
+**사양**:
+- Parameters: ~88M
+- 메모리 (224×224, batch=32): ~8 GB
+- Apple MPS: ✅ **안전**
+
+**특징**:
+- Window-based Self-Attention (Window 7)
+- 224×224 표준 해상도
+- 빠른 훈련 및 벤치마킹
+
+**예상 성능**:
+- F1-Macro: 0.93~0.95
+- Accuracy: 0.94~0.96
+
 ---
 
-#### DeiT-Base-384 ⭐
+#### DeiT (224 vs 384)
+
+##### DeiT-Base-384 (고품질) ⭐⭐
 
 ```bash
 # 기본 설정 (추천)
@@ -684,10 +739,36 @@ python src/train.py \
 - Data-efficient Image Transformer
 - Knowledge Distillation
 - 384×384 입력 최적화
+- 문서 디테일 보존
 
 **예상 성능**:
 - F1-Macro: 0.94~0.96
 - Accuracy: 0.95~0.97
+
+##### DeiT-Base-224 (빠른 실험) ⭐
+
+```bash
+# 빠른 실험용
+python src/train.py \
+  data=transformer_224 \
+  model=deit_base_224 \
+  training.batch_size=32
+```
+
+**사양**:
+- Parameters: ~86M
+- 메모리 (224×224, batch=32): ~8 GB
+- Apple MPS: ✅ **안전**
+
+**특징**:
+- ViT 개선 버전
+- Knowledge Distillation
+- 224×224 표준 해상도
+- 빠른 훈련 및 벤치마킹
+
+**예상 성능**:
+- F1-Macro: 0.92~0.94
+- Accuracy: 0.93~0.95
 
 ---
 
@@ -781,6 +862,91 @@ python src/train.py \
   data=transformer_384 \
   model=resnet34 \
   training=baseline_768
+```
+
+---
+
+## 🔬 모델 벤치마킹
+
+### 빠른 성능 비교 (1-2 에포크)
+
+모든 모델의 성능을 빠르게 비교하는 벤치마크 스크립트를 제공합니다.
+
+#### 벤치마크 실행
+
+```bash
+# 프로젝트의 6개 모델 자동 벤치마크
+python scripts/benchmark_models.py
+
+# 결과 저장 위치:
+# .benchmark_logs/        - 각 모델별 로그
+# .benchmark_results/     - 결과 JSON 파일
+```
+
+#### 벤치마크 모델 목록
+
+**CNN 계열 (768×768)**:
+- ResNet34 (batch_size=8)
+- ResNet50 (batch_size=8)
+- EfficientNet-B4 (batch_size=4)
+
+**Modern CNN (224×224)**:
+- ConvNeXt-Base (batch_size=16)
+
+**Transformer 계열 (384×384)**:
+- Swin-Base-384 (batch_size=8)
+- DeiT-Base-384 (batch_size=8)
+
+#### 벤치마크 결과 해석
+
+```bash
+# 결과 예시 (.benchmark_results/result_MMDD_HHMM.json)
+{
+  "model": "resnet34",
+  "category": "CNN",
+  "num_params": 21000000,
+  "model_size_mb": 84.0,
+  "total_train_time": 180.5,
+  "avg_epoch_time": 90.2,
+  "max_memory_mb": 8192.0,
+  "status": "success"
+}
+```
+
+**지표 설명**:
+- `num_params`: 파라미터 수
+- `model_size_mb`: 모델 크기 (MB)
+- `total_train_time`: 총 훈련 시간 (초)
+- `avg_epoch_time`: 에포크당 평균 시간 (초)
+- `max_memory_mb`: 최대 메모리 사용량 (MB)
+- `status`: 성공/실패 여부
+
+#### 환경별 벤치마크 특징
+
+**CUDA 서버 (128GB)**:
+- ✅ 모든 모델 정상 실행
+- ✅ 큰 배치 크기 가능
+- ✅ 빠른 훈련 속도
+
+**Mac mini M4 Pro (24GB)**:
+- ✅ 대부분 모델 실행 가능
+- ⚠️ EfficientNet-B4는 작은 배치 크기 필요
+- ⚠️ Transformer 모델은 MPS 이슈로 CPU 모드 실행
+
+#### 벤치마크 후 다음 단계
+
+```bash
+# 1. 성능 좋은 모델 선택
+# 2. 전체 에포크로 훈련
+python src/train.py \
+  data=baseline_aug \
+  model=resnet34 \
+  training=baseline_768
+
+# 3. 여러 모델 앙상블
+python src/ensemble.py \
+  --predictions pred_resnet34.csv pred_resnet50.csv pred_swin384.csv \
+  --method soft_voting
 ```
 
 ---
@@ -965,10 +1131,73 @@ python src/train.py data=transformer_384 model=swin_base_384 training=baseline_7
 
 ### 3단계: Inference (리더보드 제출)
 
+#### 기본 사용 (Champion 모델)
+
 ```bash
-python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
-# 출력: submission.csv
+# Champion 모델 자동 사용
+python src/inference.py
+
+# 출력 파일명 지정
+python src/inference.py inference.output=submission_final.csv
 ```
+
+#### 특정 Run ID 사용
+
+```bash
+# 특정 실험의 모델 사용
+python src/inference.py inference.run_id=20260216_run_001
+
+# Run ID 확인 방법
+ls -lt checkpoints/
+# 출력 예시:
+# 20260216_run_003/  (최신)
+# 20260216_run_002/
+# 20260216_run_001/
+# champion/
+```
+
+#### 직접 Checkpoint 경로 지정
+
+```bash
+# 특정 체크포인트 직접 지정
+python src/inference.py \
+  inference.checkpoint=checkpoints/20260216_run_001/epoch=10-val_f1=0.950.ckpt
+
+# 출력 파일도 함께 지정
+python src/inference.py \
+  inference.checkpoint=checkpoints/20260216_run_002/epoch=15-val_f1=0.876.ckpt \
+  inference.output=pred_resnet50.csv
+```
+
+#### 여러 모델 Ensemble용 예측 생성
+
+```bash
+# ResNet50 모델
+python src/inference.py \
+  inference.run_id=20260216_run_001 \
+  inference.output=pred_resnet50.csv
+
+# EfficientNet-B4 모델
+python src/inference.py \
+  inference.run_id=20260216_run_002 \
+  inference.output=pred_efficientnet.csv
+
+# Swin-384 모델
+python src/inference.py \
+  inference.run_id=20260216_run_003 \
+  inference.output=pred_swin384.csv
+
+# 이후 ensemble.py로 앙상블
+python src/ensemble.py \
+  --predictions pred_resnet50.csv pred_efficientnet.csv pred_swin384.csv \
+  --method soft_voting
+```
+
+**Inference 체크포인트 선택 우선순위**:
+1. `inference.checkpoint`: 직접 경로 지정 (최우선)
+2. `inference.run_id`: 특정 실험 run ID
+3. Champion 모델: `checkpoints/champion/best_model.ckpt`
+4. 최고 성능 모델: 모든 실험 중 val_f1 최대값
 
 ### 4단계: 결과 분석
 
@@ -1067,3 +1296,8 @@ python src/train.py --multirun \
 **프로젝트 상태**: 완료 (F1 0.993)
 **Best 모델**: ResNet34 + baseline_aug (768×768)
 **환경**: CUDA 서버 (128GB) + Mac mini M4 Pro (24GB)
+
+**최신 기능**:
+- ✅ 모델 벤치마크 스크립트 (scripts/benchmark_models.py)
+- ✅ Transformer 224/384 해상도 선택 가능
+- ✅ Inference run_id 지정 기능 추가

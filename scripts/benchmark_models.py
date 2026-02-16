@@ -41,16 +41,20 @@ DEFAULT_DATA_PATH = "datasets_fin"
 BYTES_PER_FLOAT32 = 4
 MB_DIVISOR = 1024 * 1024
 
-# 벤치마크 모델 목록
+# 벤치마크 모델 목록 (프로젝트 설정 파일 기준)
+# configs/model/*.yaml 파일들과 동기화됨
 BENCHMARK_MODELS = [
-    {"name": "resnet34", "model_name": "resnet34", "pretrained": True, "batch_size": 32, "img_size": 224, "category": "CNN"},
-    {"name": "efficientnet_b2", "model_name": "efficientnet_b2", "pretrained": True, "batch_size": 32, "img_size": 224, "category": "CNN"},
-    {"name": "efficientnet_b4", "model_name": "efficientnet_b4", "pretrained": True, "batch_size": 16, "img_size": 224, "category": "CNN"},
-    {"name": "swin_base_224", "model_name": "swin_base_patch4_window7_224", "pretrained": True, "batch_size": 16, "img_size": 224, "category": "Transformer"},
+    # CNN 계열 (고해상도 768x768 - 문서 이미지 세부 정보 보존)
+    {"name": "resnet34", "model_name": "resnet34", "pretrained": True, "batch_size": 8, "img_size": 768, "category": "CNN"},
+    {"name": "resnet50", "model_name": "resnet50", "pretrained": True, "batch_size": 8, "img_size": 768, "category": "CNN"},
+    {"name": "efficientnet_b4", "model_name": "efficientnet_b4", "pretrained": True, "batch_size": 4, "img_size": 768, "category": "CNN"},
+
+    # Modern CNN (Hybrid - 표준 해상도)
     {"name": "convnext_base", "model_name": "convnext_base", "pretrained": True, "batch_size": 16, "img_size": 224, "category": "Hybrid"},
-    {"name": "dit_base", "model_name": "vit_base_patch16_224", "pretrained": True, "batch_size": 16, "img_size": 224, "category": "Document-AI"},
-    {"name": "swin_base_384", "model_name": "swin_base_patch4_window12_384", "pretrained": True, "batch_size": 8, "img_size": 384, "category": "Transformer-HighRes"},
-    {"name": "mobilenetv3_large", "model_name": "mobilenetv3_large_100", "pretrained": True, "batch_size": 64, "img_size": 224, "category": "Lightweight"},
+
+    # Transformer 계열 (고해상도 384x384)
+    {"name": "swin_base_384", "model_name": "swin_base_patch4_window12_384", "pretrained": True, "batch_size": 8, "img_size": 384, "category": "Transformer"},
+    {"name": "deit_base_384", "model_name": "deit_base_patch16_384", "pretrained": True, "batch_size": 8, "img_size": 384, "category": "Transformer"},
 ]
 
 

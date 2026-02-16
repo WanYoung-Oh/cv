@@ -1,0 +1,12 @@
+# DeiT (Data-efficient Image Transformer) Base-224
+# Paper: https://arxiv.org/abs/2012.12877
+# ViT의 개선 버전, 데이터 효율적 학습
+
+model_name: deit_base_patch16_224
+pretrained: true
+num_classes: 17
+
+# DeiT-224는 표준 해상도 지원
+# Patch size=16 (224×224 = 14×14 patches)
+# Knowledge distillation으로 학습되어 ViT보다 효율적
+# 빠른 실험과 벤치마킹에 적합

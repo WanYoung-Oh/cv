@@ -1,0 +1,11 @@
+# Swin Transformer-Base-224
+# Paper: https://arxiv.org/abs/2103.14030
+# Window size 7 (224/32 patches = 7x7 window)
+
+model_name: swin_base_patch4_window7_224
+pretrained: true
+num_classes: 17
+
+# Swin-224는 표준 해상도 입력에 최적화
+# Window size=7 (224×224 입력에 최적)
+# 빠른 실험과 벤치마킹에 적합

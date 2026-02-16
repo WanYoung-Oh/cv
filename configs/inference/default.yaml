@@ -1,0 +1,21 @@
+# Inference 기본 설정
+
+# 체크포인트 선택 우선순위:
+# 1. checkpoint: 직접 경로 지정 (최우선)
+# 2. run_id: 특정 실험 run ID 지정
+# 3. 자동: champion → 최고 성능 모델 → 에러
+
+# 체크포인트 직접 지정 (선택사항)
+# checkpoint: "checkpoints/20260216_run_001/epoch=10-val_f1=0.950.ckpt"
+checkpoint: null
+
+# 실험 run ID 지정 (선택사항)
+# 예: 20260216_run_001, 20260216_run_002
+# run_id: "20260216_run_001"
+run_id: null
+
+# 출력 파일 경로
+output: "pred.csv"
+
+# 배치 크기 (추론 시 메모리에 따라 조정 가능)
+# batch_size: 32

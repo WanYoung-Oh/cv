@@ -184,8 +184,23 @@ def calculate_class_weights(class_counts: pd.Series) -> pd.Series:
     return weights / weights.min()
 
 
+def save_to_csv(data: Dict | pd.DataFrame, filename: str, output_dir: str = ".benchmark_results") -> None:
+    """데이터를 CSV 파일로 저장"""
+    Path(output_dir).mkdir(exist_ok=True)
+    output_path = Path(output_dir) / filename
+
+    if isinstance(data, dict):
+        df = pd.DataFrame([data])
+    else:
+        df = data
+
+    df.to_csv(output_path, index=False, encoding='utf-8-sig')
+    print(f"[CSV 저장: {output_path}]")
+
+
 def main():
     data_root = Path("datasets_fin")
+    output_dir = ".benchmark_results"
 
     # 메타 정보 로드
     class_names = {}
@@ -206,6 +221,18 @@ def main():
     print(f"  평균 크기: {stats['w_mean']:.0f}x{stats['h_mean']:.0f} (AR: {stats['ar_mean']:.2f})")
     print(f"  방향성: 세로 {stats['portrait']}, 가로 {stats['landscape']}, 정사각 {stats['square']}")
 
+    # 통계를 CSV로 저장
+    stats_df = pd.DataFrame([{
+        'total_images': stats['count'],
+        'mean_width': f"{stats['w_mean']:.0f}",
+        'mean_height': f"{stats['h_mean']:.0f}",
+        'mean_aspect_ratio': f"{stats['ar_mean']:.2f}",
+        'portrait_count': stats['portrait'],
+        'landscape_count': stats['landscape'],
+        'square_count': stats['square']
+    }])
+    save_to_csv(stats_df, 'dataset_statistics.csv', output_dir)
+
     # 클래스 분석
     class_counts = train_df.iloc[:, 1].value_counts().sort_index()
     weights = calculate_class_weights(class_counts)
@@ -214,15 +241,37 @@ def main():
     for idx, w in weights.items():
         print(f"  {class_names.get(idx, 'Unknown'):20s}: {w:.2f}")
 
+    # 클래스 가중치를 CSV로 저장
+    weights_df = pd.DataFrame([
+        {
+            'class_id': idx,
+            'class_name': class_names.get(idx, 'Unknown'),
+            'count': class_counts.get(idx, 0),
+            'weight': f"{w:.2f}"
+        }
+        for idx, w in weights.items()
+    ])
+    save_to_csv(weights_df, 'class_weights.csv', output_dir)
+
     # 시각화
-    plot_analysis(widths, heights, ratios, class_counts, class_names)
+    plot_analysis(widths, heights, ratios, class_counts, class_names, output_dir)
 
     # 권장사항
+    recommendations = []
     print("\n[권장사항]")
     if stats['ar_mean'] < 0.8:
-        print("  - 세로로 긴 이미지가 많음 → Padding 포함 Resize 권장")
+        rec = "세로로 긴 이미지가 많음 → Padding 포함 Resize 권장"
+        print(f"  - {rec}")
+        recommendations.append(rec)
     if (imbalance := class_counts.max() / class_counts.min()) > 2.0:
-        print(f"  - 클래스 불균형 {imbalance:.1f}배 → Focal Loss 또는 가중치 적용 권장")
+        rec = f"클래스 불균형 {imbalance:.1f}배 → Focal Loss 또는 가중치 적용 권장"
+        print(f"  - {rec}")
+        recommendations.append(rec)
+
+    # 권장사항을 CSV로 저장
+    if recommendations:
+        rec_df = pd.DataFrame([{'recommendation': rec} for rec in recommendations])
+        save_to_csv(rec_df, 'recommendations.csv', output_dir)
 
     # Class별 이미지 크기 분석 (NEW)
     class_stats = analyze_class_sizes(train_df, data_root / "train", class_names)
@@ -234,6 +283,9 @@ def main():
     # 테이블 헤더
     print(f"{'Class':<20s} {'Count':>6s} {'Min W':>7s} {'Max W':>7s} {'Avg W':>7s} {'Min H':>7s} {'Max H':>7s} {'Avg H':>7s}")
     print("-" * 70)
+
+    # Class별 통계를 DataFrame으로 변환
+    class_stats_list = []
 
     # 각 Class 통계 출력
     for class_id in sorted(class_stats.keys()):
@@ -249,10 +301,55 @@ def main():
             f"{s['mean_height']:>7.0f}"
         )
 
+        # CSV용 데이터 수집
+        class_stats_list.append({
+            'class_id': class_id,
+            'class_name': s['class_name'],
+            'count': s['count'],
+            'min_width': s['min_width'],
+            'max_width': s['max_width'],
+            'mean_width': f"{s['mean_width']:.0f}",
+            'min_height': s['min_height'],
+            'max_height': s['max_height'],
+            'mean_height': f"{s['mean_height']:.0f}"
+        })
+
     print("="*70)
+
+    # Class별 크기 분포를 CSV로 저장
+    class_stats_df = pd.DataFrame(class_stats_list)
+    save_to_csv(class_stats_df, 'class_size_distribution.csv', output_dir)
 
     # CNN vs Transformer 입력 크기 전략 권장
     recommend_input_size(class_stats)
+
+    # 입력 크기 전략 권장사항도 CSV로 저장
+    all_mean_width = np.mean([s['mean_width'] for s in class_stats.values()])
+    all_mean_height = np.mean([s['mean_height'] for s in class_stats.values()])
+
+    cnn_sizes = [224, 256, 384, 512]
+    recommended_cnn = min(cnn_sizes, key=lambda x: abs(x - all_mean_width))
+
+    vit_sizes = [224, 384, 512]
+    recommended_vit = min(vit_sizes, key=lambda x: abs(x - all_mean_height))
+
+    input_size_rec = pd.DataFrame([
+        {
+            'model_type': 'CNN (ResNet, EfficientNet)',
+            'recommended_size': f"{recommended_cnn}x{recommended_cnn}",
+            'reason': f'평균 크기({all_mean_width:.0f})에 가장 근접',
+            'options': ', '.join(map(str, cnn_sizes))
+        },
+        {
+            'model_type': 'Transformer (ViT, Swin, DeiT)',
+            'recommended_size': f"{recommended_vit}x{recommended_vit}",
+            'reason': 'ViT는 patch 단위 처리, 384+ 크기에서 성능 우수',
+            'options': ', '.join(map(str, vit_sizes))
+        }
+    ])
+    save_to_csv(input_size_rec, 'input_size_recommendations.csv', output_dir)
+
+    print(f"\n✅ 모든 결과가 '{output_dir}/' 디렉토리에 저장되었습니다.")
 
 
 if __name__ == "__main__":
