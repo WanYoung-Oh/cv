@@ -23,6 +23,11 @@ from tqdm import tqdm
 from src.data.datamodule import DocumentImageDataModule
 from src.models.module import DocumentClassifierModule
 from src.utils.device import get_simple_device
+from src.utils.helpers import (
+    extract_val_f1_from_filename,
+    create_datamodule_from_config,
+    save_predictions_to_csv
+)
 
 
 log = logging.getLogger(__name__)
@@ -100,17 +105,10 @@ def find_checkpoint_by_run_id(checkpoint_dir: Path, run_id: str) -> Optional[Pat
     best_metric = 0.0
 
     for ckpt_file in ckpt_files:
-        try:
-            filename = ckpt_file.stem
-            if 'val_f1=' in filename:
-                val_f1_str = filename.split('val_f1=')[1]
-                val_f1 = float(val_f1_str)
-
-                if val_f1 > best_metric:
-                    best_metric = val_f1
-                    best_checkpoint = ckpt_file
-        except (ValueError, IndexError):
-            continue
+        val_f1 = extract_val_f1_from_filename(ckpt_file)
+        if val_f1 is not None and val_f1 > best_metric:
+            best_metric = val_f1
+            best_checkpoint = ckpt_file
 
     if best_checkpoint:
         log.info(f"최고 성능 체크포인트 발견: val_f1={best_metric:.4f}")
@@ -139,19 +137,10 @@ def find_best_checkpoint(checkpoint_dir: Path) -> Optional[Path]:
         ckpt_files = list(exp_dir.glob("*.ckpt"))
 
         for ckpt_file in ckpt_files:
-            try:
-                # 파일명에서 val_f1 추출
-                # 예: epoch=10-val_f1=0.950.ckpt -> 0.950
-                filename = ckpt_file.stem
-                if 'val_f1=' in filename:
-                    val_f1_str = filename.split('val_f1=')[1]
-                    val_f1 = float(val_f1_str)
-
-                    if val_f1 > best_metric:
-                        best_metric = val_f1
-                        best_checkpoint = ckpt_file
-            except (ValueError, IndexError):
-                continue
+            val_f1 = extract_val_f1_from_filename(ckpt_file)
+            if val_f1 is not None and val_f1 > best_metric:
+                best_metric = val_f1
+                best_checkpoint = ckpt_file
 
     if best_checkpoint:
         log.info(f"최고 성능 체크포인트 발견: val_f1={best_metric:.4f}")
@@ -262,25 +251,13 @@ def main(cfg: DictConfig) -> None:
 
     log.info(f"테스트 데이터: {test_csv_path}")
 
-    data_module = DocumentImageDataModule(
-        data_root=cfg.data.root_path,
-        train_csv=cfg.data.train_csv,
-        test_csv=cfg.data.test_csv,
-        train_image_dir=cfg.data.get('train_image_dir', 'train/'),
-        test_image_dir=cfg.data.get('test_image_dir', 'test/'),
-        img_size=cfg.data.img_size,
-        batch_size=cfg.training.batch_size,
-        num_workers=cfg.training.num_workers,
-        train_val_split=cfg.data.train_val_split,
-        normalization=cfg.data.normalization,
-        augmentation=cfg.data.augmentation,
-    )
-
+    # DataModule 생성 (팩토리 함수 사용)
+    data_module = create_datamodule_from_config(cfg)
     data_module.setup()
 
     # 모델 로드
     log.info("모델 로드 중...")
-    model = DocumentClassifierModule.load_from_checkpoint(checkpoint_path, strict=False)
+    model = DocumentClassifierModule.load_from_checkpoint(checkpoint_path)
     model.eval()
 
     # 디바이스 설정 (CUDA -> MPS -> CPU 자동 감지)
@@ -306,40 +283,18 @@ def main(cfg: DictConfig) -> None:
 
     log.info(f"총 예측 수: {len(predictions)}")
 
-    # 결과 저장
-    # sample_submission.csv가 있으면 그 형식 따르기
-    sample_submission_path = os.path.join(cfg.data.root_path, "sample_submission.csv")
+    # 결과 저장 (유틸리티 함수 사용)
+    result_df = save_predictions_to_csv(
+        predictions=predictions,
+        output_path=output_path,
+        data_root=cfg.data.root_path,
+        test_csv_path=test_csv_path,
+        task_name="Inference"
+    )
 
-    if os.path.exists(sample_submission_path):
-        # sample_submission.csv 형식으로 저장
-        log.info(f"sample_submission.csv 형식 사용: {sample_submission_path}")
-        sample_df = pd.read_csv(sample_submission_path)
-        sample_df.iloc[:, 1] = predictions[:len(sample_df)]
-        result_df = sample_df
-    else:
-        # 기본 형식으로 저장 (id, target)
-        log.info("기본 형식으로 저장 (id, target)")
-        image_ids = get_test_image_ids(test_csv_path)
-        result_df = pd.DataFrame({
-            'id': image_ids[:len(predictions)],
-            'target': predictions
-        })
-
-    # CSV 저장
-    result_df.to_csv(output_path, index=False)
-
-    log.info("=" * 70)
-    log.info(f"✅ Inference 완료!")
-    log.info(f"📄 결과 저장: {output_path}")
+    # 예측 샘플 출력
     log.info(f"📊 예측 샘플:")
     log.info(f"\n{result_df.head(10)}")
-    log.info("=" * 70)
-
-    # 클래스별 예측 분포 출력
-    pred_counts = pd.Series(predictions).value_counts().sort_index()
-    log.info("\n📈 예측 클래스 분포:")
-    for class_id, count in pred_counts.items():
-        log.info(f"  클래스 {class_id}: {count:4d} ({count/len(predictions)*100:5.2f}%)")
 
 
 if __name__ == "__main__":

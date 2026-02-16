@@ -182,6 +182,7 @@ def main(cfg: DictConfig) -> None:
         normalization=cfg.data.normalization,
         augmentation=cfg.data.augmentation,
         seed=cfg.seed,
+        drop_last=cfg.training.get('drop_last', False),
     )
     
     # 데이터 설정 (클래스 가중치 계산)
@@ -245,7 +246,12 @@ def main(cfg: DictConfig) -> None:
 
     # WanDB에 전체 설정 저장
     wandb_logger.experiment.config.update(OmegaConf.to_container(cfg))
-    
+
+    # Mixed Precision 설정
+    precision = '16-mixed' if cfg.training.get('use_amp', False) else 32
+    if precision == '16-mixed':
+        log.info("✨ Mixed Precision (AMP) 활성화")
+
     # 트레이너 설정
     trainer = pl.Trainer(
         max_epochs=cfg.training.epochs,
@@ -256,6 +262,7 @@ def main(cfg: DictConfig) -> None:
         log_every_n_steps=cfg.training.log_interval,
         val_check_interval=cfg.training.val_check_interval,
         enable_progress_bar=True,
+        precision=precision,
     )
     
     # 학습
@@ -270,12 +277,9 @@ def main(cfg: DictConfig) -> None:
     # 최고 성능 체크포인트 찾기 및 챔피언 모델 업데이트
     best_checkpoint = checkpoint_callback.best_model_path
     if best_checkpoint and os.path.exists(best_checkpoint):
-        # 파일명에서 val_f1 추출
+        # PyTorch Lightning의 best_model_score 사용 (파일명 파싱 불필요)
         try:
-            # 예: epoch=10-val_f1=0.950.ckpt -> 0.950
-            filename = Path(best_checkpoint).stem
-            val_f1_str = filename.split('val_f1=')[1]
-            val_f1 = float(val_f1_str)
+            val_f1 = checkpoint_callback.best_model_score.item()
 
             # 챔피언 디렉토리
             champion_dir = Path(cfg.checkpoint_dir) / "champion"

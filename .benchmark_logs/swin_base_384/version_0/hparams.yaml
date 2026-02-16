@@ -1,0 +1,9 @@
+model_name: swin_base_patch4_window12_384
+pretrained: true
+num_classes: 17
+learning_rate: 0.001
+weight_decay: 0.0001
+warmup_epochs: 5
+epochs: 2
+warmup_start_factor: 0.01
+scheduler_eta_min: 1.0e-06

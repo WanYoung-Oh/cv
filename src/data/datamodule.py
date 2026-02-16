@@ -99,6 +99,7 @@ class DocumentImageDataModule(pl.LightningDataModule):
         normalization: Optional[dict] = None,
         augmentation: Optional[dict] = None,
         seed: Optional[int] = None,
+        drop_last: bool = False,
     ):
         super().__init__()
         self.data_root = data_root
@@ -111,6 +112,7 @@ class DocumentImageDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.train_val_split = train_val_split
         self.seed = seed if seed is not None else 42  # Config에서 전달된 seed 사용 (기본값 42)
+        self.drop_last = drop_last
 
         # 정규화 설정
         self.normalization = normalization or {
@@ -164,13 +166,26 @@ class DocumentImageDataModule(pl.LightningDataModule):
             aug_list = self.augmentation_cfg.get('val_augmentations', [])
 
         # Config의 augmentation을 파싱하여 적용
+        failed_augmentations = []
         if aug_list and self.augmentation_cfg.get('enabled', True):
             for aug_config in aug_list:
                 try:
                     transforms.append(self._parse_augmentation(aug_config))
                 except Exception as e:
-                    # augmentation 파싱 실패 시 경고 후 건너뜀
-                    log.warning(f"Failed to parse augmentation: {aug_config}, error: {e}")
+                    # augmentation 파싱 실패 시 에러 로깅
+                    log.error(
+                        f"Failed to parse augmentation config: {aug_config}\n"
+                        f"Error: {type(e).__name__}: {e}\n"
+                        f"This augmentation will be SKIPPED. Check your config for typos."
+                    )
+                    failed_augmentations.append(aug_config.get('type', 'unknown'))
+
+            # 실패한 augmentation이 있으면 경고 메시지 출력
+            if failed_augmentations:
+                log.error(
+                    f"⚠️  {len(failed_augmentations)} augmentation(s) failed to load: {failed_augmentations}\n"
+                    f"Training will continue with remaining augmentations, but this may affect model performance."
+                )
         else:
             # Config에 augmentation이 없으면 기본 Resize만 적용
             transforms.append(A.Resize(height=self.img_size, width=self.img_size))
@@ -252,6 +267,7 @@ class DocumentImageDataModule(pl.LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             pin_memory=True,
+            drop_last=self.drop_last,
         )
 
     def val_dataloader(self):

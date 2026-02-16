@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-02-16T08:43:54.774Z",
+  "lastUpdated": "2026-02-16T09:24:07.306Z",
   "activeFeatures": [
     "data",
     "scripts",
@@ -17,7 +17,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-13T01:59:45.534Z",
-        "lastUpdated": "2026-02-15T05:42:08.311Z"
+        "lastUpdated": "2026-02-16T09:23:44.752Z"
       },
       "lastFile": "/Users/owy/Dev/CV/src/data/datamodule.py"
     },
@@ -43,9 +43,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-02-16T08:43:31.198Z",
-        "lastUpdated": "2026-02-16T08:43:54.774Z"
+        "lastUpdated": "2026-02-16T09:24:07.306Z"
       },
-      "lastFile": "/Users/owy/Dev/CV/src/inference.py"
+      "lastFile": "/Users/owy/Dev/CV/src/train.py"
     }
   },
   "pipeline": {
@@ -56,7 +56,7 @@
   "session": {
     "startedAt": "2026-02-13T00:36:53.077Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-02-16T08:43:54.774Z"
+    "lastActivity": "2026-02-16T09:24:07.306Z"
   },
   "history": [
     {
@@ -398,6 +398,168 @@
     },
     {
       "timestamp": "2026-02-16T08:43:54.774Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:10:44.268Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:10:57.328Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:11:14.767Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:11:34.450Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:11:39.010Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:11:49.895Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:11:52.788Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:11:56.039Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:18:46.073Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:19:08.159Z",
+      "feature": "data",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:02.444Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:11.888Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:21.191Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:25.895Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:33.890Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:36.984Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:21:54.232Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:22:17.922Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:22:24.710Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:22:34.776Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:22:37.433Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:22:48.304Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:23:11.547Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:23:42.903Z",
+      "feature": "data",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:23:44.752Z",
+      "feature": "data",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:23:53.742Z",
+      "feature": "CV",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-02-16T09:24:07.306Z",
       "feature": "CV",
       "phase": "do",
       "action": "updated"

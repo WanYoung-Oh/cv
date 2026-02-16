@@ -6,6 +6,7 @@ Ensemble 시스템
 """
 
 import os
+import sys
 import json
 import logging
 from pathlib import Path
@@ -26,6 +27,7 @@ from scipy import stats
 from src.data.datamodule import DocumentImageDataModule
 from src.models.module import DocumentClassifierModule
 from src.utils.device import get_simple_device
+from src.utils.helpers import create_datamodule_from_config, save_predictions_to_csv
 
 log = logging.getLogger(__name__)
 
@@ -160,19 +162,8 @@ def main(cfg: DictConfig) -> None:
     if not os.path.exists(test_csv_path):
         raise FileNotFoundError(f"테스트 CSV를 찾을 수 없습니다: {test_csv_path}")
 
-    data_module = DocumentImageDataModule(
-        data_root=cfg.data.root_path,
-        train_csv=cfg.data.train_csv,
-        test_csv=cfg.data.test_csv,
-        train_image_dir=cfg.data.get('train_image_dir', 'train/'),
-        test_image_dir=cfg.data.get('test_image_dir', 'test/'),
-        img_size=cfg.data.img_size,
-        batch_size=cfg.training.batch_size,
-        num_workers=cfg.training.num_workers,
-        train_val_split=cfg.data.train_val_split,
-        normalization=cfg.data.normalization,
-        augmentation=cfg.data.augmentation,
-    )
+    # DataModule 생성 (팩토리 함수 사용)
+    data_module = create_datamodule_from_config(cfg)
     data_module.setup()
     test_loader = data_module.test_dataloader()
 
@@ -210,35 +201,22 @@ def main(cfg: DictConfig) -> None:
         final_preds = rank_averaging(all_probabilities)
         final_probs = None
 
+    else:
+        raise ValueError(
+            f"Unknown ensemble method: {method}. "
+            f"Supported methods: hard_voting, soft_voting, rank_averaging"
+        )
+
     log.info(f"총 예측 수: {len(final_preds)}")
 
-    # 결과 저장
-    sample_submission_path = os.path.join(cfg.data.root_path, "sample_submission.csv")
-
-    if os.path.exists(sample_submission_path):
-        sample_df = pd.read_csv(sample_submission_path)
-        sample_df.iloc[:, 1] = final_preds[:len(sample_df)]
-        result_df = sample_df
-    else:
-        test_df = pd.read_csv(test_csv_path)
-        image_ids = test_df.iloc[:, 0].tolist()
-        result_df = pd.DataFrame({
-            'id': image_ids[:len(final_preds)],
-            'target': final_preds
-        })
-
-    result_df.to_csv(output, index=False)
-
-    log.info("=" * 70)
-    log.info(f"✅ Ensemble 완료!")
-    log.info(f"📄 결과 저장: {output}")
-    log.info("=" * 70)
-
-    # 통계
-    pred_counts = pd.Series(final_preds).value_counts().sort_index()
-    log.info("\n📈 예측 클래스 분포:")
-    for class_id, count in pred_counts.items():
-        log.info(f"  클래스 {class_id}: {count:4d} ({count/len(final_preds)*100:5.2f}%)")
+    # 결과 저장 (유틸리티 함수 사용)
+    result_df = save_predictions_to_csv(
+        predictions=final_preds,
+        output_path=output,
+        data_root=cfg.data.root_path,
+        test_csv_path=test_csv_path,
+        task_name="Ensemble"
+    )
 
     # 앙상블 정보 저장
     ensemble_info = {
