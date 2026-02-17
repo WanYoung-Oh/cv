@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import pandas as pd
-import numpy as np
 
 if TYPE_CHECKING:
     from omegaconf import DictConfig
@@ -87,6 +86,7 @@ def create_datamodule_from_config(cfg: "DictConfig") -> "DocumentImageDataModule
         train_val_split=cfg.data.train_val_split,
         normalization=cfg.data.normalization,
         augmentation=cfg.data.augmentation,
+        seed=cfg.get('seed', 42),
         drop_last=cfg.training.get('drop_last', False),
     )
 

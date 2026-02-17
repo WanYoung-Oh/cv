@@ -170,7 +170,7 @@ def main(cfg: DictConfig) -> None:
     Hydra config로 inference 설정 관리:
         inference.checkpoint: 체크포인트 경로 (선택사항, 최우선)
         inference.run_id: 실험 run ID (선택사항, 2순위)
-        inference.output: 출력 파일 경로 (기본값: pred.csv)
+        inference.output: 출력 파일 경로 (기본값: datasets_fin/submission/submission_{model_name}.csv)
 
     사용 예시:
         # Champion 모델 사용 (기본)
