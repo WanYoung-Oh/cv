@@ -41,13 +41,6 @@ augmentation:
       value: [255, 255, 255]
       p: 0.3
 
-    # Flip
-    - type: "HorizontalFlip"
-      p: 0.5
-
-    - type: "VerticalFlip"
-      p: 0.2
-
     # ============ 문서 특화 Augmentation ============
     # 대비 강화
     - type: "CLAHE"

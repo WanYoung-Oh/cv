@@ -4,7 +4,7 @@ PyTorch Lightning DataModule for document image classification
 
 import os
 import logging
-from typing import Optional
+from typing import Optional, Dict, List
 
 import pandas as pd
 import numpy as np
@@ -36,7 +36,8 @@ class DocumentImageDataset(Dataset):
         data_root: str,
         image_subdir: str,
         transform=None,
-        has_label: bool = True
+        has_label: bool = True,
+        class_to_idx: Optional[Dict] = None,
     ):
         """
         Args:
@@ -44,7 +45,8 @@ class DocumentImageDataset(Dataset):
             data_root: 데이터 루트 디렉토리 (datasets_fin/)
             image_subdir: 이미지 하위 디렉토리 (train/ 또는 test/)
             transform: 이미지 변환
-            has_label: label 컬럼 존재 여부 (test.csv는 False)
+            has_label: label 컬럼 존재 여부 (test/submission용은 False)
+            class_to_idx: 사전 빌드된 클래스→인덱스 매핑 (None이면 df에서 자동 생성)
         """
         self.df = df
         self.data_root = data_root
@@ -52,10 +54,18 @@ class DocumentImageDataset(Dataset):
         self.transform = transform
         self.has_label = has_label
 
-        # 클래스 인코딩 (label이 있는 경우만)
-        if self.has_label and len(df.columns) >= 2:
-            self.classes = sorted(self.df.iloc[:, 1].unique())
-            self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+        if self.has_label:
+            if class_to_idx is not None:
+                # DataModule에서 전체 학습 데이터 기준으로 빌드된 매핑 사용
+                self.class_to_idx = class_to_idx
+                self.classes = sorted(class_to_idx.keys())
+            elif len(df.columns) >= 2:
+                # 독립 사용 시 fallback: df에서 직접 빌드
+                self.classes = sorted(self.df.iloc[:, 1].unique())
+                self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+            else:
+                self.classes = []
+                self.class_to_idx = {}
         else:
             self.classes = []
             self.class_to_idx = {}
@@ -67,7 +77,6 @@ class DocumentImageDataset(Dataset):
         row = self.df.iloc[idx]
         img_name = row.iloc[0]
 
-        # 이미지 경로: datasets_fin/train/image.jpg 또는 datasets_fin/test/image.jpg
         img_path = os.path.join(self.data_root, self.image_subdir, img_name)
         image = np.array(Image.open(img_path).convert('RGB'))
 
@@ -78,7 +87,7 @@ class DocumentImageDataset(Dataset):
             label = self.class_to_idx[row.iloc[1]]
             return image, label
 
-        # label이 없는 경우 (inference용 test.csv)
+        # 레이블 없음 (inference용 submission CSV)
         return image, -1
 
 
@@ -111,22 +120,25 @@ class DocumentImageDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.train_val_split = train_val_split
-        self.seed = seed if seed is not None else 42  # Config에서 전달된 seed 사용 (기본값 42)
+        self.seed = seed if seed is not None else 42
         self.drop_last = drop_last
 
-        # 정규화 설정
         self.normalization = normalization or {
             'mean': IMAGENET_MEAN,
             'std': IMAGENET_STD
         }
-
         self.augmentation_cfg = augmentation or {}
 
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
         self.class_weights = None
-        self._setup_done = False
+        self.class_names: Optional[List] = None
+        self.idx_to_class: Optional[Dict] = None
+
+        # fit/test 독립 초기화 플래그 (stage-aware)
+        self._fit_done = False
+        self._test_done = False
 
     def _parse_augmentation(self, aug_config: dict):
         """Augmentation config dict를 Albumentations 객체로 변환
@@ -137,7 +149,6 @@ class DocumentImageDataModule(pl.LightningDataModule):
         Returns:
             Albumentations transform 객체
         """
-        # DictConfig를 일반 dict로 변환 (OmegaConf struct mode 대응)
         if isinstance(aug_config, DictConfig):
             aug_dict = OmegaConf.to_container(aug_config, resolve=True)
         else:
@@ -145,7 +156,6 @@ class DocumentImageDataModule(pl.LightningDataModule):
 
         aug_type = aug_dict.pop('type')
 
-        # Albumentations 클래스 동적 로드
         if hasattr(A, aug_type):
             aug_class = getattr(A, aug_type)
             return aug_class(**aug_dict)
@@ -156,41 +166,44 @@ class DocumentImageDataModule(pl.LightningDataModule):
         """데이터 변환 구성
 
         Config의 augmentation 설정을 파싱하여 동적으로 생성합니다.
+        모든 augmentation 파싱이 실패한 경우 기본 Resize로 fallback합니다.
         """
         transforms = []
 
-        # Config에서 augmentation 리스트 가져오기
         if is_train:
             aug_list = self.augmentation_cfg.get('train_augmentations', [])
         else:
             aug_list = self.augmentation_cfg.get('val_augmentations', [])
 
-        # Config의 augmentation을 파싱하여 적용
-        failed_augmentations = []
         if aug_list and self.augmentation_cfg.get('enabled', True):
+            failed_augmentations = []
             for aug_config in aug_list:
                 try:
                     transforms.append(self._parse_augmentation(aug_config))
                 except Exception as e:
-                    # augmentation 파싱 실패 시 에러 로깅
                     log.error(
                         f"Failed to parse augmentation config: {aug_config}\n"
                         f"Error: {type(e).__name__}: {e}\n"
-                        f"This augmentation will be SKIPPED. Check your config for typos."
+                        f"This augmentation will be SKIPPED."
                     )
                     failed_augmentations.append(aug_config.get('type', 'unknown'))
 
-            # 실패한 augmentation이 있으면 경고 메시지 출력
             if failed_augmentations:
                 log.error(
-                    f"⚠️  {len(failed_augmentations)} augmentation(s) failed to load: {failed_augmentations}\n"
-                    f"Training will continue with remaining augmentations, but this may affect model performance."
+                    f"⚠️  {len(failed_augmentations)} augmentation(s) failed: {failed_augmentations}"
                 )
+
+            # 모든 augmentation 파싱 실패 시 Resize fallback
+            if not transforms:
+                log.error(
+                    "All augmentations failed. Falling back to basic Resize. "
+                    "Check your augmentation config."
+                )
+                transforms.append(A.Resize(height=self.img_size, width=self.img_size))
         else:
-            # Config에 augmentation이 없으면 기본 Resize만 적용
+            # aug_list가 없거나 enabled=False
             transforms.append(A.Resize(height=self.img_size, width=self.img_size))
 
-        # 정규화 및 Tensor 변환 (항상 마지막에 적용)
         transforms.extend([
             A.Normalize(
                 mean=self.normalization['mean'],
@@ -202,63 +215,81 @@ class DocumentImageDataModule(pl.LightningDataModule):
         return A.Compose(transforms)
 
     def setup(self, stage: Optional[str] = None):
-        """데이터 로드 및 분할"""
-        if self._setup_done:
-            return
+        """데이터 로드 및 분할
 
-        # Train 데이터 로드 및 Train/Val 분할
-        train_full_df = pd.read_csv(self.train_csv)
+        Args:
+            stage: 'fit' (train/val), 'test' (test), 'predict', None (전체)
+        """
+        # Fit 단계: train/val 데이터셋 구성
+        if stage in ('fit', 'train', None) and not self._fit_done:
+            train_full_df = pd.read_csv(self.train_csv)
 
-        train_idx, val_idx = train_test_split(
-            range(len(train_full_df)),
-            test_size=(1 - self.train_val_split),
-            random_state=self.seed,
-            stratify=train_full_df.iloc[:, 1]
-        )
-
-        train_df = train_full_df.iloc[train_idx].reset_index(drop=True)
-        val_df = train_full_df.iloc[val_idx].reset_index(drop=True)
-
-        # 클래스 가중치 계산
-        class_counts = train_df.iloc[:, 1].value_counts()
-        class_weights = 1.0 / class_counts.sort_index()
-        class_weights = class_weights / class_weights.sum() * len(class_weights)
-        self.class_weights = torch.FloatTensor(class_weights.values)
-
-        # 데이터셋 생성 (DataFrame 직접 전달)
-        train_transform = self._get_transforms(is_train=True)
-        val_transform = self._get_transforms(is_train=False)
-
-        self.train_dataset = DocumentImageDataset(
-            train_df,
-            self.data_root,
-            self.train_image_dir,
-            transform=train_transform,
-            has_label=True
-        )
-
-        self.val_dataset = DocumentImageDataset(
-            val_df,
-            self.data_root,
-            self.train_image_dir,
-            transform=val_transform,
-            has_label=True
-        )
-
-        # Test 데이터셋 (별도 파일로 제공)
-        if self.test_csv and os.path.exists(self.test_csv):
-            test_df = pd.read_csv(self.test_csv)
-            # label 컬럼 존재 여부 확인
-            has_label = len(test_df.columns) >= 2
-            self.test_dataset = DocumentImageDataset(
-                test_df,
-                self.data_root,
-                self.test_image_dir,
-                transform=val_transform,
-                has_label=has_label
+            train_idx, val_idx = train_test_split(
+                range(len(train_full_df)),
+                test_size=(1 - self.train_val_split),
+                random_state=self.seed,
+                stratify=train_full_df.iloc[:, 1]
             )
 
-        self._setup_done = True
+            train_df = train_full_df.iloc[train_idx].reset_index(drop=True)
+            val_df = train_full_df.iloc[val_idx].reset_index(drop=True)
+
+            # 클래스 매핑을 전체 학습 데이터 기준으로 한 번만 빌드
+            all_classes = sorted(train_full_df.iloc[:, 1].unique())
+            class_to_idx = {cls: idx for idx, cls in enumerate(all_classes)}
+            self.class_names = all_classes
+            self.idx_to_class = {idx: cls for cls, idx in class_to_idx.items()}
+
+            # 클래스 가중치 계산 (train_df 기준)
+            class_counts = train_df.iloc[:, 1].value_counts()
+            class_weights = 1.0 / class_counts.sort_index()
+            class_weights = class_weights / class_weights.sum() * len(class_weights)
+            self.class_weights = torch.FloatTensor(class_weights.values)
+
+            train_transform = self._get_transforms(is_train=True)
+            val_transform = self._get_transforms(is_train=False)
+
+            # 동일한 class_to_idx를 train/val 모두에 전달 → 인덱스 일관성 보장
+            self.train_dataset = DocumentImageDataset(
+                train_df,
+                self.data_root,
+                self.train_image_dir,
+                transform=train_transform,
+                has_label=True,
+                class_to_idx=class_to_idx,
+            )
+            self.val_dataset = DocumentImageDataset(
+                val_df,
+                self.data_root,
+                self.train_image_dir,
+                transform=val_transform,
+                has_label=True,
+                class_to_idx=class_to_idx,
+            )
+
+            self._fit_done = True
+
+        # Test 단계: submission CSV 기반 테스트 데이터셋 구성
+        if stage in ('test', 'predict', None) and not self._test_done:
+            if self.test_csv and os.path.exists(self.test_csv):
+                test_df = pd.read_csv(self.test_csv)
+                val_transform = self._get_transforms(is_train=False)
+                # submission 데이터는 레이블 없음 (has_label=False 고정)
+                self.test_dataset = DocumentImageDataset(
+                    test_df,
+                    self.data_root,
+                    self.test_image_dir,
+                    transform=val_transform,
+                    has_label=False,
+                )
+                log.info(
+                    f"테스트 데이터셋 로드: {len(self.test_dataset)}개 이미지 "
+                    f"({self.test_csv})"
+                )
+            else:
+                log.info("test_csv 미설정 또는 파일 없음 - 테스트 데이터셋 미생성")
+
+            self._test_done = True
 
     def train_dataloader(self):
         return DataLoader(
@@ -281,8 +312,10 @@ class DocumentImageDataModule(pl.LightningDataModule):
 
     def test_dataloader(self):
         if self.test_dataset is None:
-            return self.val_dataloader()
-
+            raise RuntimeError(
+                "test_dataset이 초기화되지 않았습니다. "
+                "test_csv 경로를 확인하거나 setup()을 먼저 호출하세요."
+            )
         return DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,

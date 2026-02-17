@@ -133,7 +133,11 @@ def main(cfg: DictConfig) -> None:
     checkpoints = ensemble_cfg.get('checkpoints', [])
     method = ensemble_cfg.get('method', 'soft_voting')
     weights = ensemble_cfg.get('weights', None)
-    output = ensemble_cfg.get('output', 'pred_ensemble.csv')
+
+    # 출력 경로: datasets_fin/submission/submission_ensemble_{method}.csv
+    submission_dir = os.path.join(cfg.data.root_path, "submission")
+    default_output = os.path.join(submission_dir, f"submission_ensemble_{method}.csv")
+    output = ensemble_cfg.get('output', default_output)
 
     if not checkpoints:
         raise ValueError(
@@ -157,12 +161,16 @@ def main(cfg: DictConfig) -> None:
     if len(models) == 1:
         log.warning("모델이 1개만 로드되었습니다. 앙상블 효과 없음.")
 
-    # 데이터 로드
-    test_csv_path = os.path.join(cfg.data.root_path, cfg.data.test_csv)
-    if not os.path.exists(test_csv_path):
-        raise FileNotFoundError(f"테스트 CSV를 찾을 수 없습니다: {test_csv_path}")
+    # 데이터 로드 (sample_submission.csv를 테스트 데이터 소스로 사용)
+    submission_csv = cfg.data.get('sample_submission_csv', cfg.data.get('test_csv', None))
+    if not submission_csv:
+        raise ValueError("cfg.data.sample_submission_csv 또는 cfg.data.test_csv가 필요합니다.")
 
-    # DataModule 생성 (팩토리 함수 사용)
+    submission_csv_path = os.path.join(cfg.data.root_path, submission_csv)
+    if not os.path.exists(submission_csv_path):
+        raise FileNotFoundError(f"Submission CSV를 찾을 수 없습니다: {submission_csv_path}")
+
+    # DataModule 생성 (팩토리 함수 사용, sample_submission_csv를 test_csv로 전달)
     data_module = create_datamodule_from_config(cfg)
     data_module.setup()
     test_loader = data_module.test_dataloader()
@@ -214,8 +222,8 @@ def main(cfg: DictConfig) -> None:
         predictions=final_preds,
         output_path=output,
         data_root=cfg.data.root_path,
-        test_csv_path=test_csv_path,
-        task_name="Ensemble"
+        test_csv_path=submission_csv_path,
+        task_name="Ensemble",
     )
 
     # 앙상블 정보 저장

@@ -45,14 +45,6 @@ augmentation:
       value: [255, 255, 255]  # 흰색 배경
       p: 0.3
 
-    # 좌우 반전 : 삭제 검토 필요
-    - type: "HorizontalFlip"
-      p: 0.5
-
-    # 상하 반전
-    - type: "VerticalFlip"
-      p: 0.2
-
     # ============ 문서 특화 Augmentation ============
     # 대비 강화 (Ink/Paper 분리)
     - type: "CLAHE"

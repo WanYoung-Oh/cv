@@ -32,10 +32,6 @@ augmentation:
     - type: "RandomRotate90"
       p: 0.3
 
-    # 좌우 반전
-    - type: "HorizontalFlip"
-      p: 0.3
-
   # 검증/테스트 증강
   val_augmentations:
     # Resize (동일한 전략)

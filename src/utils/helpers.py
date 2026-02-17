@@ -6,7 +6,7 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import pandas as pd
 import numpy as np
@@ -61,26 +61,24 @@ def create_datamodule_from_config(cfg: "DictConfig") -> "DocumentImageDataModule
     """
     Hydra config에서 DocumentImageDataModule을 생성합니다.
 
-    이 함수는 ensemble.py와 inference.py에서 중복된 DataModule 생성 로직을
-    단일 팩토리 함수로 통합합니다.
+    inference/ensemble 용도이므로 test_csv로 sample_submission_csv를 사용합니다.
+    sample_submission_csv가 없으면 test_csv로 fallback합니다.
 
     Args:
         cfg: Hydra 설정 객체 (cfg.data, cfg.training 포함)
 
     Returns:
         설정된 DocumentImageDataModule 인스턴스
-
-    Example:
-        >>> data_module = create_datamodule_from_config(cfg)
-        >>> data_module.setup()
-        >>> test_loader = data_module.test_dataloader()
     """
     from src.data.datamodule import DocumentImageDataModule
+
+    # inference/ensemble에서는 sample_submission_csv를 test 데이터 소스로 사용
+    test_csv = cfg.data.get('sample_submission_csv', cfg.data.get('test_csv', None))
 
     return DocumentImageDataModule(
         data_root=cfg.data.root_path,
         train_csv=cfg.data.train_csv,
-        test_csv=cfg.data.test_csv,
+        test_csv=test_csv,
         train_image_dir=cfg.data.get('train_image_dir', 'train/'),
         test_image_dir=cfg.data.get('test_image_dir', 'test/'),
         img_size=cfg.data.img_size,
@@ -98,40 +96,31 @@ def save_predictions_to_csv(
     output_path: str,
     data_root: str,
     test_csv_path: Optional[str] = None,
-    task_name: str = "Inference"
+    task_name: str = "Inference",
 ) -> pd.DataFrame:
     """
     예측 결과를 CSV 파일로 저장하고 클래스 분포를 로깅합니다.
 
-    이 함수는 ensemble.py와 inference.py에서 중복된 결과 저장 로직을
-    단일 유틸리티 함수로 통합합니다.
-
     Args:
-        predictions: 예측 결과 리스트
+        predictions: 예측 정수 인덱스 리스트
         output_path: 저장할 CSV 파일 경로
         data_root: 데이터 루트 경로
         test_csv_path: 테스트 CSV 경로 (optional)
-        task_name: 작업 이름 (로깅용, default: "Inference")
+        task_name: 작업 이름 (로깅용)
 
     Returns:
         저장된 DataFrame
-
-    Example:
-        >>> predictions = [0, 1, 2, 0, 1]
-        >>> df = save_predictions_to_csv(
-        ...     predictions=predictions,
-        ...     output_path="results/pred.csv",
-        ...     data_root="datasets_fin/",
-        ...     task_name="Ensemble"
-        ... )
     """
+    pred_values = [int(p) for p in predictions]
+
     # sample_submission.csv가 있으면 그 형식 따르기
     sample_submission_path = os.path.join(data_root, "sample_submission.csv")
 
     if os.path.exists(sample_submission_path):
         log.info(f"sample_submission.csv 형식 사용: {sample_submission_path}")
         sample_df = pd.read_csv(sample_submission_path)
-        sample_df.iloc[:, 1] = predictions[:len(sample_df)]
+        col_name = sample_df.columns[1]
+        sample_df[col_name] = pred_values[:len(sample_df)]
         result_df = sample_df
     else:
         # 기본 형식으로 저장 (id, target)
@@ -140,15 +129,15 @@ def save_predictions_to_csv(
             test_df = pd.read_csv(test_csv_path)
             image_ids = test_df.iloc[:, 0].tolist()
         else:
-            # test CSV가 없으면 인덱스 사용
-            image_ids = list(range(len(predictions)))
+            image_ids = list(range(len(pred_values)))
 
         result_df = pd.DataFrame({
-            'id': image_ids[:len(predictions)],
-            'target': predictions
+            'id': image_ids[:len(pred_values)],
+            'target': pred_values
         })
 
-    # CSV 저장
+    # 출력 디렉토리 생성 후 저장
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     result_df.to_csv(output_path, index=False)
 
     # 완료 로깅

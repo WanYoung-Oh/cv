@@ -168,11 +168,11 @@ def main(cfg: DictConfig) -> None:
     device, accelerator, devices, device_info = get_device(model_name=cfg.model.model_name)
     log.info(f"사용 디바이스: {device_info}")
     
-    # 데이터모듈 생성
+    # 데이터모듈 생성 (학습 시 test_csv 불필요 - submission은 inference.py에서 처리)
     data_module = DocumentImageDataModule(
         data_root=cfg.data.root_path,
         train_csv=cfg.data.train_csv,
-        test_csv=cfg.data.get('test_csv', None),
+        test_csv=None,
         train_image_dir=cfg.data.get('train_image_dir', 'train/'),
         test_image_dir=cfg.data.get('test_image_dir', 'test/'),
         img_size=cfg.data.img_size,
@@ -184,9 +184,9 @@ def main(cfg: DictConfig) -> None:
         seed=cfg.seed,
         drop_last=cfg.training.get('drop_last', False),
     )
-    
-    # 데이터 설정 (클래스 가중치 계산)
-    data_module.setup()
+
+    # 데이터 설정 (train/val만, stage='fit')
+    data_module.setup(stage='fit')
     
     # 모델 생성
     model = DocumentClassifierModule(

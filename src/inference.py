@@ -186,7 +186,12 @@ def main(cfg: DictConfig) -> None:
     inference_cfg = cfg.get('inference', {})
     checkpoint_path = inference_cfg.get('checkpoint', None)
     run_id = inference_cfg.get('run_id', None)
-    output_path = inference_cfg.get('output', 'pred.csv')
+
+    # 출력 경로: datasets_fin/submission/submission_{model_name}.csv
+    model_name = cfg.model.model_name
+    submission_dir = os.path.join(cfg.data.root_path, "submission")
+    default_output = os.path.join(submission_dir, f"submission_{model_name}.csv")
+    output_path = inference_cfg.get('output', default_output)
 
     log.info("=" * 70)
     log.info("🔮 Inference 시작")
@@ -241,17 +246,21 @@ def main(cfg: DictConfig) -> None:
     log.info(f"사용 체크포인트: {checkpoint_path}")
 
     # 데이터모듈 생성
-    test_csv_path = os.path.join(cfg.data.root_path, cfg.data.test_csv)
+    # inference는 sample_submission.csv를 테스트 데이터 소스로 사용
+    submission_csv = cfg.data.get('sample_submission_csv', cfg.data.get('test_csv', None))
+    if not submission_csv:
+        raise ValueError("cfg.data.sample_submission_csv 또는 cfg.data.test_csv가 필요합니다.")
 
-    if not os.path.exists(test_csv_path):
+    submission_csv_path = os.path.join(cfg.data.root_path, submission_csv)
+    if not os.path.exists(submission_csv_path):
         raise FileNotFoundError(
-            f"테스트 CSV 파일을 찾을 수 없습니다: {test_csv_path}\n"
+            f"Submission CSV 파일을 찾을 수 없습니다: {submission_csv_path}\n"
             f"데이터셋을 먼저 준비해주세요."
         )
 
-    log.info(f"테스트 데이터: {test_csv_path}")
+    log.info(f"테스트 데이터 (submission): {submission_csv_path}")
 
-    # DataModule 생성 (팩토리 함수 사용)
+    # DataModule 생성 (팩토리 함수 사용, sample_submission_csv를 test_csv로 전달)
     data_module = create_datamodule_from_config(cfg)
     data_module.setup()
 
@@ -288,8 +297,8 @@ def main(cfg: DictConfig) -> None:
         predictions=predictions,
         output_path=output_path,
         data_root=cfg.data.root_path,
-        test_csv_path=test_csv_path,
-        task_name="Inference"
+        test_csv_path=submission_csv_path,
+        task_name="Inference",
     )
 
     # 예측 샘플 출력
