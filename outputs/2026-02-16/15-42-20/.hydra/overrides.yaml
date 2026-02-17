@@ -1,5 +1,0 @@
-- data=baseline_aug
-- model=convnext_base
-- training=baseline_768
-- training.batch_size=2
-- data.img_size=384
