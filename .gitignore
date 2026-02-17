@@ -42,7 +42,6 @@ env/
 .env
 
 # Models
-models/
 *.pth
 *.pt
 *.ckpt
