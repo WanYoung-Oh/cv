@@ -407,7 +407,9 @@ python src/train.py \
 #### Phase 3: Inference
 
 ```bash
-python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
+# 기본: Champion 모델 사용
+python src/inference.py
+# 출력: datasets_fin/submission/submission_{model_name}.csv
 ```
 
 ---
@@ -1136,9 +1138,10 @@ python src/train.py data=transformer_384 model=swin_base_384 training=baseline_7
 ```bash
 # Champion 모델 자동 사용
 python src/inference.py
+# 출력: datasets_fin/submission/submission_{model_name}.csv
 
-# 출력 파일명 지정
-python src/inference.py inference.output=submission_final.csv
+# 출력 파일명 직접 지정
+python src/inference.py inference.output=datasets_fin/submission/submission_final.csv
 ```
 
 #### 특정 Run ID 사용
@@ -1166,7 +1169,7 @@ python src/inference.py \
 # 출력 파일도 함께 지정
 python src/inference.py \
   inference.checkpoint=checkpoints/20260216_run_002/epoch=15-val_f1=0.876.ckpt \
-  inference.output=pred_resnet50.csv
+  inference.output=datasets_fin/submission/submission_resnet50.csv
 ```
 
 #### 여러 모델 Ensemble용 예측 생성
@@ -1175,22 +1178,22 @@ python src/inference.py \
 # ResNet50 모델
 python src/inference.py \
   inference.run_id=20260216_run_001 \
-  inference.output=pred_resnet50.csv
+  inference.output=datasets_fin/submission/submission_resnet50.csv
 
 # EfficientNet-B4 모델
 python src/inference.py \
   inference.run_id=20260216_run_002 \
-  inference.output=pred_efficientnet.csv
+  inference.output=datasets_fin/submission/submission_efficientnet.csv
 
 # Swin-384 모델
 python src/inference.py \
   inference.run_id=20260216_run_003 \
-  inference.output=pred_swin384.csv
+  inference.output=datasets_fin/submission/submission_swin384.csv
 
-# 이후 ensemble.py로 앙상블
+# 이후 ensemble.py로 앙상블 (기본 출력: datasets_fin/submission/submission_ensemble_{method}.csv)
 python src/ensemble.py \
-  --predictions pred_resnet50.csv pred_efficientnet.csv pred_swin384.csv \
-  --method soft_voting
+  ensemble.checkpoints=[checkpoints/run001/best.ckpt,checkpoints/run002/best.ckpt] \
+  ensemble.method=soft_voting
 ```
 
 **Inference 체크포인트 선택 우선순위**:
@@ -1292,7 +1295,7 @@ python src/train.py --multirun \
 
 ---
 
-**마지막 업데이트**: 2026-02-16
+**마지막 업데이트**: 2026-02-17
 **프로젝트 상태**: 완료 (F1 0.993)
 **Best 모델**: ResNet34 + baseline_aug (768×768)
 **환경**: CUDA 서버 (128GB) + Mac mini M4 Pro (24GB)

@@ -44,7 +44,7 @@ export WANDB_MODE=disabled
 ### 3. Best 모델로 Inference (리더보드 제출)
 ```bash
 python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
-# 출력: submission.csv
+# 출력: datasets_fin/submission/submission_{model_name}.csv
 ```
 
 ### 4. 새로운 모델 훈련 (선택사항)
@@ -63,11 +63,12 @@ python src/train.py data=transformer_384 model=swin_base_384 training=baseline_7
 ### 구조
 ```
 datasets_fin/
-├── train.csv          (1,570개, 레이블 있음)
-├── test.csv           (3,141개, 레이블 더미 0, 리더보드 제출용)
-├── meta.csv           (17개 클래스 정보)
-├── train/             (훈련 이미지)
-└── test/              (테스트 이미지)
+├── train.csv               (1,570개, 레이블 있음)
+├── sample_submission.csv   (3,140개, 리더보드 제출 형식)
+├── meta.csv                (17개 클래스 정보)
+├── train/                  (훈련 이미지)
+├── test/                   (테스트 이미지, 리더보드 제출용)
+└── submission/             (inference 결과 자동 저장)
 ```
 
 ### 클래스 정보
@@ -146,9 +147,11 @@ CV/
 │       └── report.md            # 완료 보고서
 │
 ├── datasets_fin/                 # 데이터셋
-│   ├── train.csv, test.csv
+│   ├── train.csv                # 학습 데이터 (레이블 있음)
+│   ├── sample_submission.csv    # 제출 형식 (inference 입력/출력 기준)
 │   ├── train/ (1,570장)
-│   └── test/ (3,141장)
+│   ├── test/ (3,140장)
+│   └── submission/              # inference 결과 저장 (자동 생성)
 │
 ├── checkpoints/                  # 모델 체크포인트
 │   ├── YYYYMMDD_run_XXX/         # 실험별 디렉토리
@@ -199,11 +202,15 @@ python src/train.py \
 
 ### Inference
 ```bash
-# Champion 모델
-python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
+# Champion 모델 (기본)
+python src/inference.py
+# 출력: datasets_fin/submission/submission_{model_name}.csv
 
-# 특정 체크포인트
-python src/inference.py checkpoint=checkpoints/20260215_run_002/best_model.ckpt
+# 특정 run_id 사용
+python src/inference.py inference.run_id=20260216_run_001
+
+# 특정 체크포인트 직접 지정
+python src/inference.py inference.checkpoint=checkpoints/20260215_run_002/epoch=10-val_f1=0.993.ckpt
 ```
 
 ### 결과 분석
@@ -412,8 +419,8 @@ python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
 # 훈련 (Best 모델)
 python src/train.py data=baseline_aug model=resnet34 training=baseline_768
 
-# Inference
-python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
+# Inference (출력: datasets_fin/submission/submission_{model_name}.csv)
+python src/inference.py
 
 # 결과 분석
 python scripts/analyze_results.py --checkpoint checkpoints/champion/best_model.ckpt

@@ -4,7 +4,7 @@
 
 **프로젝트 상태**: ✅ 완료 (F1 0.993 달성)
 **목표 달성**: 113% (목표 0.88 vs 실제 0.993)
-**마지막 업데이트**: 2026-02-15
+**마지막 업데이트**: 2026-02-17
 
 ---
 
@@ -27,11 +27,12 @@
 ### 구조
 ```
 datasets_fin/
-├── train.csv          (1,570개, 레이블 있음)
-├── test.csv           (3,141개, 레이블 더미 0)
-├── meta.csv           (17개 클래스)
-├── train/             (훈련 이미지)
-└── test/              (테스트 이미지, 리더보드 제출용)
+├── train.csv               (1,570개, 레이블 있음)
+├── sample_submission.csv   (3,140개, 리더보드 제출 형식)
+├── meta.csv                (17개 클래스)
+├── train/                  (훈련 이미지)
+├── test/                   (테스트 이미지, 리더보드 제출용)
+└── submission/             (inference 결과 자동 저장)
 ```
 
 ### 클래스 정보
@@ -115,13 +116,18 @@ python src/train.py \
 
 ### 3. Inference (리더보드 제출)
 ```bash
-# Champion 모델 사용
-python src/inference.py checkpoint=checkpoints/champion/best_model.ckpt
+# Champion 모델 사용 (기본)
+python src/inference.py
+# 출력: datasets_fin/submission/submission_{model_name}.csv
 
-# 특정 체크포인트 사용
-python src/inference.py checkpoint=checkpoints/20260215_run_002/best_model.ckpt
+# 특정 run_id 사용
+python src/inference.py inference.run_id=20260216_run_001
 
-# 출력: submission.csv (리더보드 제출 파일)
+# 직접 체크포인트 경로 지정
+python src/inference.py inference.checkpoint=checkpoints/20260215_run_002/epoch=10-val_f1=0.993.ckpt
+
+# 출력 파일명 직접 지정
+python src/inference.py inference.output=datasets_fin/submission/submission_final.csv
 ```
 
 ### 4. 결과 분석
