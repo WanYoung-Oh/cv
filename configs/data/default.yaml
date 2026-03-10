@@ -1,8 +1,9 @@
 # Default Data Configuration
 # 기본 설정: 최소한의 augmentation으로 빠른 실험 및 디버깅에 적합
+# 학습 데이터 분석 기반 최적화: 498×538px 평균 크기에 맞춰 512px 사용
 
-# 이미지 크기
-img_size: 768
+# 이미지 크기 (학습 데이터 평균 크기 기반)
+img_size: 512
 
 # 정규화 (ImageNet)
 normalization:
@@ -12,46 +13,64 @@ normalization:
 # Augmentation
 augmentation:
   enabled: true
+  # 혼동 쌍 전용 증강 (기본 비활성화)
+  augmentation_confusion_pair_enabled: false
+  # null이면 기본 세트(RandomRotate90+BrightnessContrast+GaussNoise) 사용
+  confusion_pair_extra_augmentations: null
 
   # 학습 증강 (최소 설정)
   train_augmentations:
     # Resize 전략 (Aspect Ratio 보존)
     - type: "LongestMaxSize"
-      max_size: 768
+      max_size: 512
       interpolation: 1  # INTER_LINEAR
 
     # 부족한 부분을 흰색으로 패딩
     - type: "PadIfNeeded"
-      min_height: 768
-      min_width: 768
+      min_height: 512
+      min_width: 512
       border_mode: 0  # cv2.BORDER_CONSTANT
-      value: [255, 255, 255]  # 흰색 패딩
+      fill: 255  # 흰색 패딩
       p: 1.0
 
     # 기본 회전
     - type: "RandomRotate90"
       p: 0.3
 
-    # 좌우 반전
-    - type: "HorizontalFlip"
-      p: 0.3
-
-  # 검증/테스트 증강
+  # 검증/테스트 증강 (DL 원칙: 최소 증강)
   val_augmentations:
-    # Resize (동일한 전략)
+    # 1. Resize: Aspect ratio 유지하며 크기 맞춤
     - type: "LongestMaxSize"
-      max_size: 768
+      max_size: 512
       interpolation: 1
 
+    # 2. Pad: 부족한 부분 흰색 패딩
     - type: "PadIfNeeded"
-      min_height: 768
-      min_width: 768
+      min_height: 512
+      min_width: 512
       border_mode: 0
-      value: [255, 255, 255]
+      fill: 255
       p: 1.0
+
+    # 3. CLAHE: 전처리 단계로 고정 적용 (대비 향상)
+    - type: "CLAHE"
+      clip_limit: 4.0
+      tile_grid_size: [8, 8]
+      p: 1.0
+    
+    # 4. Normalize: datamodule에서 자동 추가
 
 # 데이터셋 분할
 train_val_split: 0.8
 
 # 클래스 불균형 처리
 use_class_weights: true
+
+# 3-7 혼동 쌍 oversample (baseline_aug 등에서 true로 override)
+oversample_confusion_pair: false
+
+# Pseudo-Labeling 설정
+# pseudo_csv: pseudo_labels.csv 로 설정하면 pseudo-label 데이터를 학습에 추가
+# 기본값 null (사용 안 함)
+pseudo_csv: null
+pseudo_image_dir: "test/"

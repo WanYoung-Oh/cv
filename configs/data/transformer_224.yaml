@@ -12,6 +12,10 @@ normalization:
 # Augmentation
 augmentation:
   enabled: true
+  # 혼동 쌍 전용 증강 (기본 비활성화)
+  augmentation_confusion_pair_enabled: false
+  # null이면 기본 세트(RandomRotate90+BrightnessContrast+GaussNoise) 사용
+  confusion_pair_extra_augmentations: null
 
   # 학습 증강
   train_augmentations:
@@ -26,87 +30,123 @@ augmentation:
       min_height: 224
       min_width: 224
       border_mode: 0  # cv2.BORDER_CONSTANT
-      value: [255, 255, 255]  # 흰색 패딩
+      fill: 255  # 흰색 패딩
       p: 1.0
 
+    # ============ Flip Augmentation ============
+    # 좌우 반전 (문서 방향 다양화)
+    - type: "HorizontalFlip"
+      p: 0.5
+    
+    # 상하 반전 (180도 회전과 유사 효과)
+    - type: "VerticalFlip"
+      p: 0.3
+
     # ============ Rotation Augmentation ============
-    # 90도 단위 회전
+    # 90도 단위 회전 (추론 데이터 대응)
     - type: "RandomRotate90"
       p: 0.5
 
-    # ±45도 회전
+    # ±45도 회전 (다양한 각도 대응)
     - type: "Rotate"
       limit: [-45, 45]
       border_mode: 0
-      value: [255, 255, 255]
+      fill: 255
       p: 0.3
 
-    # Flip
-    - type: "HorizontalFlip"
-      p: 0.5
-
-    - type: "VerticalFlip"
-      p: 0.2
-
     # ============ 문서 특화 Augmentation ============
-    # 대비 강화
+    # 대비 강화 (Ink/Paper 분리)
     - type: "CLAHE"
       clip_limit: 4.0
       tile_grid_size: [8, 8]
-      p: 0.4
+      p: 0.65
 
-    # 밝기/대비 조정
+    # 밝기/대비 조정 (그림자 제거)
     - type: "RandomBrightnessContrast"
       brightness_limit: 0.2
       contrast_limit: 0.3
       p: 0.3
+
+    # 그림자 증강 (24.1% 데이터에 그림자 존재)
+    - type: "RandomShadow"
+      shadow_roi: [0, 0.5, 1, 1]
+      num_shadows_limit: [1, 2]
+      shadow_dimension: 5
+      p: 0.2
 
     # 원근 변환 (스캔 각도)
     - type: "Perspective"
       scale: [0.05, 0.1]
       p: 0.2
 
-    # 색상 변화
+    # 색상 변화 (종이 색상) - 흑백 중심 데이터에 맞게 조정
     - type: "ColorJitter"
       brightness: 0.1
       contrast: 0.1
-      saturation: 0.1
-      hue: 0.05
+      saturation: 0.03
+      hue: 0.02
       p: 0.2
 
-    # 노이즈
+    # 노이즈 (스캔 노이즈) - 대부분 clean하므로 확률 축소
     - type: "GaussNoise"
-      var_limit: [10.0, 30.0]
-      p: 0.1
+      std_range: [0.01, 0.05]
+      p: 0.05
 
-    # 선명도
+    # 선명도 조정 (47.5% moderate sharpness)
     - type: "Sharpen"
       alpha: [0.2, 0.5]
       lightness: [0.5, 1.0]
-      p: 0.2
+      p: 0.3
+      
+    # 데이터 다양성 추가 (문서 구김, 일부분 가림)
+    - type: "GridDistortion"  # 문서 구김/굴곡 대응 (66% 데이터에 high distortion)
+      distort_limit: 0.3
+      num_steps: 5
+      p: 0.5
 
-  # 검증/테스트 증강
+    - type: "ElasticTransform"  # 자연스러운 문서 구김 (GridDistortion과 상호보완)
+      alpha: 120
+      sigma: 6
+      border_mode: 0
+      fill: 255
+      p: 0.3
+
+    - type: "CoarseDropout"
+      num_holes_range: [4, 8]
+      hole_height_range: [16, 32]
+      hole_width_range: [16, 32]
+      fill: 255
+      p: 0.3
+
+  # 검증/테스트 증강 (DL 원칙: 최소 증강)
   val_augmentations:
-    # Resize (동일한 전략)
+    # 1. Resize: Aspect ratio 유지하며 크기 맞춤
     - type: "LongestMaxSize"
       max_size: 224
       interpolation: 1
 
+    # 2. Pad: 부족한 부분 흰색 패딩
     - type: "PadIfNeeded"
       min_height: 224
       min_width: 224
       border_mode: 0
-      value: [255, 255, 255]
+      fill: 255
       p: 1.0
 
-    # CLAHE (대비 개선)
+    # 3. CLAHE: 전처리 단계로 고정 적용 (대비 향상)
     - type: "CLAHE"
       clip_limit: 4.0
       tile_grid_size: [8, 8]
       p: 1.0
+    
+    # 4. Normalize: datamodule에서 자동 추가
 
 # 데이터셋 분할
 train_val_split: 0.8
 
 # 클래스 불균형 처리
 use_class_weights: true
+
+# Pseudo-Labeling 설정
+pseudo_csv: null
+pseudo_image_dir: "test/"

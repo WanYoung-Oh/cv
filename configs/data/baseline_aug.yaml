@@ -1,9 +1,12 @@
-# Step 1: Baseline Augmentation (고정 768x768 + Rotation)
-# 목표: F1 0.85, 예상 시간: 1시간
-# 전략: Aspect ratio 유지 + Padding + 회전 augmentation
+# Optimized Augmentation (512x512)
+# 목표: 과적합 해결 (Val F1 0.96 → LB 0.93+)
+# 전략: 학습 데이터 평균 크기(498×538)에 최적화 + Hard augmentation
 
-# 이미지 크기 (고정)
-img_size: 768
+# 이미지 크기 (학습 데이터 분석 기반 최적화)
+# - 학습 데이터 평균: 498×538px
+# - 과도한 upscaling 시 불필요한 보간 아티팩트
+# - 512px로 변경: 픽셀 44% 감소, 학습 속도 30-40% 향상
+img_size: 512
 
 # 정규화 (ImageNet)
 normalization:
@@ -13,23 +16,35 @@ normalization:
 # Augmentation
 augmentation:
   enabled: true
+  # 혼동 쌍 전용 증강 (기본 비활성화)
+  augmentation_confusion_pair_enabled: false
+  # null이면 기본 세트(RandomRotate90+BrightnessContrast+GaussNoise) 사용
+  confusion_pair_extra_augmentations: null
 
   # 학습 증강
   train_augmentations:
     # ============ Resize 전략 (Aspect Ratio 보존) ============
-    # 1. 긴 쪽을 768로 맞춤 (AR 유지)
+    # 1. 긴 쪽을 512로 맞춤 (AR 유지)
     - type: "LongestMaxSize"
-      max_size: 768
+      max_size: 512
       interpolation: 1  # INTER_LINEAR
 
     # 2. 부족한 부분을 흰색으로 패딩 (문서 배경색)
     - type: "PadIfNeeded"
-      min_height: 768
-      min_width: 768
+      min_height: 512
+      min_width: 512
       border_mode: 0  # cv2.BORDER_CONSTANT
-      value: [255, 255, 255]  # 흰색 패딩
-      # position: "center" # 이미지 위치 항상 중앙으로 정제
+      fill: 255  # 흰색 패딩
       p: 1.0
+
+    # ============ Flip Augmentation ============
+    # 좌우 반전 (문서 방향 다양화)
+    - type: "HorizontalFlip"
+      p: 0.5
+    
+    # 상하 반전 (180도 회전과 유사 효과)
+    - type: "VerticalFlip"
+      p: 0.3
 
     # ============ Rotation Augmentation (핵심) ============
     # 회전 문제 해결: 학습 데이터에 다양한 회전 추가
@@ -42,23 +57,15 @@ augmentation:
     - type: "Rotate"
       limit: [-45, 45]
       border_mode: 0  # cv2.BORDER_CONSTANT
-      value: [255, 255, 255]  # 흰색 배경
+      fill: 255  # 흰색 배경
       p: 0.3
-
-    # 좌우 반전 : 삭제 검토 필요
-    - type: "HorizontalFlip"
-      p: 0.5
-
-    # 상하 반전
-    - type: "VerticalFlip"
-      p: 0.2
 
     # ============ 문서 특화 Augmentation ============
     # 대비 강화 (Ink/Paper 분리)
     - type: "CLAHE"
       clip_limit: 4.0
       tile_grid_size: [8, 8]
-      p: 0.4
+      p: 0.65
 
     # 밝기/대비 조정 (그림자 제거)
     - type: "RandomBrightnessContrast"
@@ -66,52 +73,98 @@ augmentation:
       contrast_limit: 0.3
       p: 0.3
 
+    # 그림자 증강 (24.1% 데이터에 그림자 존재)
+    - type: "RandomShadow"
+      shadow_roi: [0, 0.5, 1, 1]
+      num_shadows_limit: [1, 2]
+      shadow_dimension: 5
+      p: 0.2
+
     # 원근 변환 (스캔 각도)
     - type: "Perspective"
       scale: [0.05, 0.1]
       p: 0.2
 
-    # 색상 변화 (종이 색상)
+    # 색상 변화 (종이 색상) - 흑백 중심 데이터에 맞게 조정
     - type: "ColorJitter"
       brightness: 0.1
       contrast: 0.1
-      saturation: 0.1
-      hue: 0.05
+      saturation: 0.03
+      hue: 0.02
       p: 0.2
 
-    # 노이즈 (스캔 노이즈)
+    # 노이즈 (스캔 노이즈) - 대부분 clean하므로 확률 축소
     - type: "GaussNoise"
-      var_limit: [10.0, 30.0]
-      p: 0.1
+      std_range: [0.01, 0.05]
+      p: 0.05
 
-    # 선명도 조정
+    # 선명도 조정 (47.5% moderate sharpness)
     - type: "Sharpen"
       alpha: [0.2, 0.5]
       lightness: [0.5, 1.0]
-      p: 0.2
+      p: 0.3
+      
+    # 데이터 다양성 추가 (문서 구김, 일부분 가림)
+    - type: "GridDistortion"  # 문서 구김/굴곡 대응 (66% 데이터에 high distortion)
+      distort_limit: 0.3
+      num_steps: 5
+      p: 0.5
 
-  # 검증/테스트 증강
+    - type: "ElasticTransform"  # 자연스러운 문서 구김 (GridDistortion과 상호보완)
+      alpha: 120
+      sigma: 6
+      border_mode: 0
+      fill: 255
+      p: 0.3
+
+    - type: "CoarseDropout"
+      num_holes_range: [4, 8]
+      hole_height_range: [21, 43]  # 512 기준 비율 유지
+      hole_width_range: [21, 43]
+      fill: 255
+      p: 0.3
+
+  # 검증/테스트 증강 (DL 원칙: 최소 증강)
   val_augmentations:
-    # Resize (동일한 전략)
+    # 1. Resize: Aspect ratio 유지하며 크기 맞춤
     - type: "LongestMaxSize"
-      max_size: 768
+      max_size: 512
       interpolation: 1
 
+    # 2. Pad: 부족한 부분 흰색 패딩
     - type: "PadIfNeeded"
-      min_height: 768
-      min_width: 768
+      min_height: 512
+      min_width: 512
       border_mode: 0
-      value: [255, 255, 255]
+      fill: 255
       p: 1.0
 
-    # Validation에는 CLAHE만 적용 (대비 개선)
+    # 3. CLAHE: 전처리 단계로 고정 적용 (대비 향상)
     - type: "CLAHE"
       clip_limit: 4.0
       tile_grid_size: [8, 8]
       p: 1.0
+    
+    # 4. Normalize: datamodule에서 자동 추가
 
 # 데이터셋 분할
 train_val_split: 0.8
 
 # 클래스 불균형 처리
 use_class_weights: true
+
+# 3-7 혼동 쌍 완화: 해당 클래스만 학습 시 1회 추가 샘플링
+oversample_confusion_pair: false
+
+# Pseudo-Labeling 설정
+# pseudo_csv: pseudo_labels.csv 로 설정하면 pseudo-label 데이터를 학습에 추가
+# 기본값 null (사용 안 함)
+pseudo_csv: null
+pseudo_image_dir: "test/"
+
+# 실제 클래스 가중치 (.benchmark_results/class_weights.csv):
+# - class_1 (임신의료비 지급신청서): 2.17배 (46개)
+# - class_13 (이력서): 1.35배 (74개)
+# - class_14 (소견서): 2.00배 (50개)
+# - 나머지 클래스: 1.00배 (100개)
+# 최대 불균형 비율: 2.17배

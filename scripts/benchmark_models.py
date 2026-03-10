@@ -44,10 +44,10 @@ MB_DIVISOR = 1024 * 1024
 # 벤치마크 모델 목록 (프로젝트 설정 파일 기준)
 # configs/model/*.yaml 파일들과 동기화됨
 BENCHMARK_MODELS = [
-    # CNN 계열 (고해상도 768x768 - 문서 이미지 세부 정보 보존)
-    {"name": "resnet34", "model_name": "resnet34", "pretrained": True, "batch_size": 8, "img_size": 768, "category": "CNN"},
-    {"name": "resnet50", "model_name": "resnet50", "pretrained": True, "batch_size": 8, "img_size": 768, "category": "CNN"},
-    {"name": "efficientnet_b4", "model_name": "efficientnet_b4", "pretrained": True, "batch_size": 4, "img_size": 768, "category": "CNN"},
+    # CNN 계열 (고해상도 512x512 - 문서 이미지 세부 정보 보존)
+    {"name": "resnet34", "model_name": "resnet34", "pretrained": True, "batch_size": 8, "img_size": 512, "category": "CNN"},
+    {"name": "resnet50", "model_name": "resnet50", "pretrained": True, "batch_size": 8, "img_size": 512, "category": "CNN"},
+    {"name": "efficientnet_b4", "model_name": "efficientnet_b4", "pretrained": True, "batch_size": 4, "img_size": 512, "category": "CNN"},
 
     # Modern CNN (Hybrid - 표준 해상도)
     {"name": "convnext_base", "model_name": "convnext_base", "pretrained": True, "batch_size": 16, "img_size": 224, "category": "Hybrid"},

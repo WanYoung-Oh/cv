@@ -1,0 +1,11 @@
+# MaxVit-Base 384 (timm ImageNet-1k)
+# Paper: https://arxiv.org/abs/2204.01697
+# Multi-Axis Vision Transformer, TensorFlow 포팅 버전
+
+model_name: maxvit_base_tf_384.in1k  # 대안: maxvit_base_tf_384.in21k_ft_in1k (소규모 데이터 추천)
+pretrained: true
+num_classes: 17
+
+# MaxVit-384는 384×384 입력에 최적화
+# Swin/DeiT와 동일하게 data=transformer_384, training=transformer 공유
+# 문서 이미지의 로컬+글로벌 패턴 학습에 효과적 (Window + Grid Attention)

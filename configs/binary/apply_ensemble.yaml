@@ -1,0 +1,87 @@
+# ============================================================
+# 이진분류기 보정 앙상블 설정 (Phase 1 + Phase 2)
+# apply_binary_ensemble.py 실행 시 binary=apply_ensemble 로 지정
+# ============================================================
+# 실행 예시:
+#   # Phase 1 비례 재배분 (기본)
+#   python scripts/apply_binary_ensemble.py \
+#     data=transformer_384 \
+#     binary=apply_ensemble \
+#     ensemble=ensemble_384_3models
+#
+#   # Phase 2 Confidence Routing + 동적 α
+#   python scripts/apply_binary_ensemble.py \
+#     data=transformer_384 \
+#     binary=apply_ensemble \
+#     binary.mode=routing \
+#     binary.alpha=0.8 \
+#     binary.theta=0.3
+# ============================================================
+
+model_name: "maxvit_base_tf_384.in1k"
+pretrained: true
+num_classes: 2
+
+# ============ 이진분류기 체크포인트 (5-fold) ============
+# train_binary_classifier.py 실행 후 checkpoints/binary/fold_results.json 참고
+binary_checkpoints:
+  - checkpoints/binary/fold_0/best.ckpt
+  - checkpoints/binary/fold_1/best.ckpt
+  - checkpoints/binary/fold_2/best.ckpt
+  - checkpoints/binary/fold_3/best.ckpt
+  - checkpoints/binary/fold_4/best.ckpt
+
+# ============ 메인 분류기 체크포인트 ============
+# 비어 있으면 ensemble.checkpoints 사용
+main_checkpoints: []
+
+# ============ TTA ============
+# heavy TTA 권장 (5fold × 11변환 = 55회 평균 → 안정적)
+use_tta: true
+tta_level: "light"
+
+# ============ 출력 ============
+output: "datasets_fin/submission/submission_binary_ensemble_maxvit.csv"
+
+# ============ 레이블 매핑 ============
+class3_idx: 3
+class7_idx: 7
+
+# ============ Phase 2: α 파라미터 + Confidence Routing ============
+# mode: "proportional" | "weighted" | "routing"
+#   proportional — Phase 1 비례 재배분 (α, θ 무시)
+#   weighted     — Phase 2 α 가중 평균 (θ 무시)
+#   routing      — Phase 2 θ 조건 분기 + α 가중 평균 (권장)
+mode: "proportional"
+
+# alpha: 보정 강도 (0.0=보정 없음, 1.0=완전 비례 재배분)
+# weighted/routing 모드에서 사용
+alpha: 0.8
+
+# theta: 라우팅 임계값. pool(=p_main[3]+p_main[7]) > theta인 샘플에만 보정.
+# routing 모드에서만 사용. validation set grid search 권장 범위: 0.1~0.8
+theta: 0.3
+
+# dynamic_alpha: true이면 메인 확신도에 따라 α를 자동 감소
+# → 시나리오 B(메인이 맞고 이진분류기가 틀림) 피해 방지 (research.md §5.3)
+dynamic_alpha: true
+
+# confidence_threshold: 동적 α 감소 시작 임계값
+# max(p_main[3], p_main[7]) > confidence_threshold 시 α 선형 감소
+confidence_threshold: 0.7
+
+# ============ Grid Search (θ, α 최적화) ============
+# grid_search=true이면 validation set에서 최적 θ, α를 탐색 후 그 값으로 보정 적용
+# 결과는 <output>_grid_search.json에 저장
+# weighted/routing 모드에서만 유효
+grid_search: false
+
+# θ 탐색 범위 (routing 모드에서만 의미 있음)
+grid_search_theta_min: 0.05
+grid_search_theta_max: 0.80
+grid_search_theta_step: 0.05
+
+# α 탐색 범위
+grid_search_alpha_min: 0.3
+grid_search_alpha_max: 1.0
+grid_search_alpha_step: 0.1

@@ -1,4 +1,5 @@
-# 기본 학습 설정 (ResNet 등 기본 모델)
+# Baseline Training Config (512×512)
+# data=baseline_aug, model=convnext_base 등 CNN 계열
 # model에 따라 달라지는 값: batch_size, accumulate_grad_batches, stochastic_depth, use_amp
 
 learning_rate: 5e-4

@@ -1,0 +1,26 @@
+# Ensemble Configuration: 384x384 모델 2개 앙상블
+# Transformer 모델들로만 구성
+
+method: "soft_voting"  # hard_voting, soft_voting, rank_averaging
+
+# 체크포인트 경로 (384x384 이미지 사용 모델만)
+checkpoints:
+  - "checkpoints/20260227_run_009/epoch=28-val_f1=0.963.ckpt"
+  - "checkpoints/20260227_run_009/epoch=31-val_f1=0.960.ckpt"
+  - "checkpoints/20260227_run_009/epoch=38-val_f1=0.962.ckpt"
+
+# 가중치 (F1 Score 기반)
+weights:
+  - 0.963
+  - 0.960
+  - 0.962
+
+# 출력 파일 경로
+output: "datasets_fin/submission/20260227_run_009_soft.csv"
+
+# 모델 정보
+# 1. Swin Transformer: F1=0.938, Window-based Transformer
+# 2. DeiT: F1=0.925, Vision Transformer
+#
+# 모두 384x384 이미지 사용, Transformer 아키텍처
+# 주의: CNN(512) 모델과 해상도가 다르므로 혼합 앙상블 시 data config 분리 필요

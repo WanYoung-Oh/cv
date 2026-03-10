@@ -15,7 +15,20 @@ checkpoint: null
 run_id: null
 
 # 출력 파일 경로
-output: "pred.csv"
+# null로 설정하면 자동으로 datasets_fin/submission/{model_name}_{run_id}.csv로 생성
+# 직접 경로 지정: "datasets_fin/submission/my_prediction.csv"
+output: null
+
+# TTA (Test Time Augmentation) 사용 여부
+# - false: 기본 예측 (빠름)
+# - true: tta_level에 따라 augmentation 적용
+use_tta: false
+
+# TTA 레벨 (use_tta: true일 때만 적용)
+# - "light"    : 5가지  (original, hflip, vflip, rot90, rot270)                   → 약 5×
+# - "standard" : 8가지  (D4 완전 집합, rot180/transpose/anti_transpose 추가)        → 약 8×
+# - "heavy"    : 11가지 (standard + brightness_up, brightness_down, sharpen)      → 약 11×
+tta_level: "standard"
 
 # 배치 크기 (추론 시 메모리에 따라 조정 가능)
 # batch_size: 32

@@ -1,0 +1,26 @@
+# Ensemble: 과거 768 학습 CNN 모델 3개
+# 신규는 baseline_aug(512) + training=baseline_512 사용 권장
+
+method: "soft_voting"
+
+# 체크포인트 경로 (과거 768 학습 모델만)
+checkpoints:
+  - "checkpoints/20260219_run_004/epoch=42-val_f1=0.988.ckpt"  # ResNet34
+  - "checkpoints/20260220_run_007/epoch=40-val_f1=0.989.ckpt"  # ConvNeXt Base (Champion)
+  - "checkpoints/20260220_run_010/epoch=19-val_f1=0.985.ckpt"  # EfficientNet B4
+
+# 가중치 (F1 Score 기반)
+weights:
+  - 0.988  # ResNet34
+  - 0.989  # ConvNeXt Base
+  - 0.985  # EfficientNet B4
+
+# 출력 파일 경로
+output: "datasets_fin/submission/ensemble_768_3models_soft.csv"
+
+# 모델 정보
+# 1. ResNet34: F1=0.988, 전통적 CNN
+# 2. ConvNeXt Base: F1=0.989, 현대적 CNN (Champion)
+# 3. EfficientNet B4: F1=0.985, 효율적 CNN
+#
+# 과거 768 학습 모델용 (현재 기준: 512)

@@ -92,6 +92,13 @@ def create_experiment_dir(base_dir: str, model_name: str) -> tuple[Path, str]:
     return experiment_dir, run_id
 
 
+def _get_loss_type(loss_str: str) -> str:
+    """Loss 설정 문자열을 DocumentClassifierModule 호환 loss_type으로 변환"""
+    if loss_str == "focal":
+        return "focal"
+    return "cross_entropy"  # "cross_entropy", "label_smoothing" 모두 cross_entropy로
+
+
 def update_champion_model(
     current_checkpoint: Path,
     current_metric: float,
@@ -162,17 +169,19 @@ def main(cfg: DictConfig) -> None:
     
     # 시드 설정
     setup_seed(cfg.seed)
+
+    torch.set_float32_matmul_precision('high')
     
     # 디바이스 설정 (CUDA, MPS, CPU 자동 선택)
     # Vision Transformer 모델은 MPS에서 호환성 문제로 자동으로 CPU로 fallback
     device, accelerator, devices, device_info = get_device(model_name=cfg.model.model_name)
     log.info(f"사용 디바이스: {device_info}")
     
-    # 데이터모듈 생성
+    # 데이터모듈 생성 (학습 시 test_csv 불필요 - submission은 inference.py에서 처리)
     data_module = DocumentImageDataModule(
         data_root=cfg.data.root_path,
         train_csv=cfg.data.train_csv,
-        test_csv=cfg.data.get('test_csv', None),
+        test_csv=None,
         train_image_dir=cfg.data.get('train_image_dir', 'train/'),
         test_image_dir=cfg.data.get('test_image_dir', 'test/'),
         img_size=cfg.data.img_size,
@@ -183,10 +192,23 @@ def main(cfg: DictConfig) -> None:
         augmentation=cfg.data.augmentation,
         seed=cfg.seed,
         drop_last=cfg.training.get('drop_last', False),
+        pseudo_csv=cfg.data.get('pseudo_csv', None),
+        pseudo_image_dir=cfg.data.get('pseudo_image_dir', 'test/'),
+        use_kfold=cfg.data.get('use_kfold', False),
+        n_folds=cfg.data.get('n_folds', 5),
+        fold_idx=cfg.data.get('fold_idx', 0),
+        oversample_minority_classes=cfg.data.get('oversample_minority_classes', False),
+        minority_class_ids=list(cfg.data.get('minority_class_ids') or []) or None,
+        minority_oversample_repeat=cfg.data.get('minority_oversample_repeat', 1),
+        minority_oversample_threshold=cfg.data.get('minority_oversample_threshold', None),
+        confusion_pair_class_ids=list(cfg.data.get('confusion_pair_class_ids') or []) or None,
+        confusion_pair_extra_weight=cfg.data.get('confusion_pair_extra_weight', 1.0),
+        class_weights_source=cfg.data.get('class_weights_source', 'auto'),
+        class_weights_csv=cfg.data.get('class_weights_csv', None),
     )
-    
-    # 데이터 설정 (클래스 가중치 계산)
-    data_module.setup()
+
+    # 데이터 설정 (train/val만, stage='fit')
+    data_module.setup(stage='fit')
     
     # 모델 생성
     model = DocumentClassifierModule(
@@ -198,6 +220,21 @@ def main(cfg: DictConfig) -> None:
         class_weights=data_module.class_weights,
         warmup_epochs=cfg.training.warmup_epochs,
         epochs=cfg.training.epochs,
+        dropout_rate=cfg.training.get('dropout_rate', 0.0),
+        stochastic_depth=cfg.training.get('stochastic_depth', 0.0),
+        label_smoothing=cfg.training.get('label_smoothing_value', 0.0),
+        use_mixup=cfg.training.get('use_mixup', False),
+        mixup_alpha=cfg.training.get('mixup_alpha', 0.8),
+        cutmix_alpha=cfg.training.get('cutmix_alpha', 1.0),
+        mixup_prob=cfg.training.get('mixup_prob', 0.5),
+        switch_prob=cfg.training.get('switch_prob', 0.5),
+        loss_type=_get_loss_type(cfg.training.get('loss', 'cross_entropy')),
+        focal_gamma=cfg.training.get('focal_gamma', 2.0),
+        warmup_start_factor=cfg.training.get('warmup_start_factor', 0.01),
+        scheduler_eta_min=cfg.training.get('scheduler_eta_min', 1e-6),
+        scheduler=cfg.training.get('scheduler', 'cosine'),
+        T_0=cfg.training.get('T_0', 15),
+        T_mult=cfg.training.get('T_mult', 2),
     )
     
     log.info(f"모델: {cfg.model.model_name}")
@@ -209,12 +246,15 @@ def main(cfg: DictConfig) -> None:
         model_name=cfg.model.model_name
     )
 
+    # config 직렬화 (experiment_info 저장 + WanDB 모두 재사용)
+    cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+
     # 실험 정보 저장
     experiment_info = {
         "run_id": run_id,
         "model_name": cfg.model.model_name,
         "started_at": datetime.now().isoformat(),
-        "config": OmegaConf.to_container(cfg, resolve=True)
+        "config": cfg_dict,
     }
     with open(experiment_dir / "experiment_info.json", 'w') as f:
         json.dump(experiment_info, f, indent=2)
@@ -227,14 +267,14 @@ def main(cfg: DictConfig) -> None:
         mode=cfg.training.checkpoint.mode,
         save_top_k=cfg.training.checkpoint.save_top_k,
     )
-    
+
     # 조기 종료 콜백
     early_stopping_callback = EarlyStopping(
         monitor=cfg.training.early_stopping.monitor,
         patience=cfg.training.early_stopping.patience,
         mode=cfg.training.early_stopping.mode,
     )
-    
+
     # WanDB 로거
     wandb_logger = WandbLogger(
         project=cfg.wandb.project,
@@ -245,11 +285,11 @@ def main(cfg: DictConfig) -> None:
     )
 
     # WanDB에 전체 설정 저장
-    wandb_logger.experiment.config.update(OmegaConf.to_container(cfg))
+    wandb_logger.experiment.config.update(cfg_dict)
 
     # Mixed Precision 설정
-    precision = '16-mixed' if cfg.training.get('use_amp', False) else 32
-    if precision == '16-mixed':
+    precision = "16-mixed" if cfg.training.get('use_amp', False) else 32
+    if precision == "16-mixed":
         log.info("✨ Mixed Precision (AMP) 활성화")
 
     # 트레이너 설정
@@ -263,6 +303,7 @@ def main(cfg: DictConfig) -> None:
         val_check_interval=cfg.training.val_check_interval,
         enable_progress_bar=True,
         precision=precision,
+        accumulate_grad_batches=cfg.training.get('accumulate_grad_batches', 1),
     )
     
     # 학습
@@ -279,7 +320,8 @@ def main(cfg: DictConfig) -> None:
     if best_checkpoint and os.path.exists(best_checkpoint):
         # PyTorch Lightning의 best_model_score 사용 (파일명 파싱 불필요)
         try:
-            val_f1 = checkpoint_callback.best_model_score.item()
+            score = checkpoint_callback.best_model_score
+            val_f1 = score.item() if hasattr(score, 'item') else float(score)
 
             # 챔피언 디렉토리
             champion_dir = Path(cfg.checkpoint_dir) / "champion"

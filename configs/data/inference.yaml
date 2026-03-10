@@ -1,0 +1,47 @@
+# Inference용 데이터 설정
+# DL 원칙: val/test는 최소 증강만 사용
+# baseline_aug/default(512)와 통일 (체크포인트 config가 우선 적용됨)
+
+# 이미지 크기 (체크포인트에서 자동으로 덮어씌워질 수 있음)
+img_size: 512
+
+# 정규화 (ImageNet - 학습과 동일하게 유지)
+normalization:
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+
+# Augmentation (DL 원칙: 최소 증강)
+augmentation:
+  enabled: true
+  
+  # 학습 증강 (사용 안 함)
+  train_augmentations: []
+  
+  # 검증/테스트 증강 (DL 원칙)
+  val_augmentations:
+    # 1. Resize: Aspect ratio 유지하며 크기 맞춤
+    - type: "LongestMaxSize"
+      max_size: 512
+      interpolation: 1
+    
+    # 2. Pad: 부족한 부분 흰색 패딩
+    - type: "PadIfNeeded"
+      min_height: 512
+      min_width: 512
+      border_mode: 0
+      fill: 255
+      p: 1.0
+    
+    # 3. CLAHE: 전처리 단계로 고정 적용 (대비 향상)
+    - type: "CLAHE"
+      clip_limit: 4.0
+      tile_grid_size: [8, 8]
+      p: 1.0
+    
+    # 4. Normalize: datamodule에서 자동 추가
+
+# 데이터셋 분할 (inference에서는 사용 안 함)
+train_val_split: 0.8
+
+# 클래스 불균형 처리 (inference에서는 사용 안 함)
+use_class_weights: false

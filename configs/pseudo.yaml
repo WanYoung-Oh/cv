@@ -1,0 +1,40 @@
+# Pseudo-Labeling 설정
+# scripts/pseudo_label.py 에서 사용
+pseudo:
+  # 신뢰도 임계값: 이 값 이상인 예측만 pseudo-label로 사용
+  # - 0.9: 보수적 (품질 우선, 약 50~70% 선택 예상)
+  # - 0.95: 매우 보수적 (품질 최우선, 약 30~50% 선택 예상)
+  # - 0.8: 적극적 (수량 우선, 약 70~90% 선택 예상)
+  confidence_threshold: 0.9
+
+  # TTA 사용 여부 (true 시 더 신뢰도 높은 pseudo-label 생성, 5배 느림)
+  use_tta: false
+
+  # 특정 run_id 사용 (null이면 champion 모델 사용)
+  run_id: null
+
+  # 출력 파일 경로 (datasets_fin/ 기준 상대경로 또는 절대경로)
+  output_csv: "datasets_fin/pseudo_labels.csv"
+
+  # ============ 분포 정렬 (Distribution Alignment) ============
+  # Pseudo-label을 타겟 분포에 맞추기
+  enable_distribution_alignment: false  # true 시 타겟 분포에 맞춰 클래스별 수 조정
+  
+  # 타겟 분포 소스: "train" | "current_run" | "ema"
+  # - train: train.csv의 클래스별 비율 사용 (학습·테스트 분포 유사 시 권장)
+  # - current_run: 이번 실행의 전체 테스트 예측 비율 사용
+  # - ema: 이전 실행들의 지수이동평균 사용
+  target_dist_source: "train"
+  
+  # 분포 정렬 방법: "per_class_cap" | "ratio_sampling"
+  # - per_class_cap: 클래스별 상한 설정 (구현 단순, 권장)
+  # - ratio_sampling: 클래스별 목표 개수 맞춤
+  distribution_alignment_method: "per_class_cap"
+  
+  # EMA 설정 (target_dist_source: "ema" 사용 시)
+  ema_alpha: 0.7  # 이전 비중 (0.7이면 이전 70% + 현재 30%)
+  ema_state_path: "datasets_fin/.pseudo_ema_state.json"
+
+  # Priority 클래스 설정 (null이면 모든 클래스 동일 처리)
+  priority_class_ids: null
+  priority_min_quota: 20

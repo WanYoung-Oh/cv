@@ -1,0 +1,42 @@
+{
+  "essential": [
+    {
+      "type": "CLAHE, RandomBrightnessContrast",
+      "reason": "낮은 대비 (0.38), 대비 향상 필수"
+    },
+    {
+      "type": "GridDistortion, ElasticTransform",
+      "reason": "왜곡 많음 (66.0%), 구김 증강 필수"
+    },
+    {
+      "type": "CoarseDropout, Cutout",
+      "reason": "가림 많음 (22.1%), 가림 증강 필수"
+    }
+  ],
+  "recommended": [
+    {
+      "type": "HorizontalFlip, VerticalFlip",
+      "reason": "문서 방향 다양화 (표준 증강)"
+    },
+    {
+      "type": "RandomBrightnessContrast",
+      "reason": "일부 그림자 (24.1%)"
+    }
+  ],
+  "optional": [
+    {
+      "type": "Sharpen",
+      "reason": "대부분 선명함, 선명도 증강 선택적"
+    },
+    {
+      "type": "Perspective",
+      "reason": "스캔 각도 다양화 (선택적)"
+    }
+  ],
+  "not_needed": [
+    {
+      "type": "Rotation",
+      "reason": "이미 다양한 방향 존재"
+    }
+  ]
+}

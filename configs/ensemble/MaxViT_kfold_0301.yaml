@@ -1,0 +1,29 @@
+# run_001 ~ run_004 앙상블
+
+method: "soft_voting"  # soft_voting with weights
+
+# 체크포인트 경로 (K-Fold 5개)
+checkpoints:
+  - "checkpoints/20260301_run_001/epoch=22-val_f1=0.943.ckpt"
+  - "checkpoints/20260301_run_002/epoch=47-val_f1=0.959.ckpt"
+  - "checkpoints/20260301_run_003/epoch=28-val_f1=0.966.ckpt"
+  - "checkpoints/20260301_run_004/epoch=27-val_f1=0.966.ckpt"
+
+# 가중치 (Val F1 Score 기반)
+weights:
+  - 0.943  # run_001
+  - 0.959  # run_002
+  - 0.966  # run_003 (최고 성능)
+  - 0.966  # run_004
+
+# 출력 파일 경로
+output: "datasets_fin/submission/MaxViT_kfold_0301_weighted.csv"
+
+# 데이터 설정 (모델 학습 시와 동일하게)
+data_config: "transformer_384"  # 384x384 이미지 사용
+
+# 모델 정보
+# - 모델: MaxViT-Base 384x384
+# - K-Fold: 4-Fold Cross Validation
+# - 평균 Val F1: 0.954
+# - 앙상블 방법: Weighted Soft Voting

@@ -1,42 +1,70 @@
-# Transformer 모델용 학습 설정
-# Vision Transformer, Swin Transformer 등에 최적화되었습니다.
+# ============================================================
+# Transformer 모델용 학습 설정 (Swin, ViT, MaxViT 등)
+# ============================================================
+# 테스트 데이터 분석 기반 최적화 (3,140장 분석)
+# - 69% grayscale, 66% high distortion, 24% shadow, 22% occlusion
+# - model에 따라 달라지는 값: batch_size, accumulate_grad_batches, stochastic_depth, use_amp
 
-learning_rate: 5e-4  # CNN보다 낮은 LR
-batch_size: 16       # 메모리 제약으로 더 작음
-epochs: 50
+# ============ 기본 학습 파라미터 ============
+learning_rate: 1e-4          # 1K모델 논문 추천
+weight_decay: 0.05           # 1K모델 논문 추천
+epochs: 100
+batch_size: 16
 num_workers: 4
+accumulate_grad_batches: 2
 
-# 옵티마이저
+# ============ 정규화 ============
+# 전략: dropout은 낮추고 stochastic depth에 집중
+# (과잉 정규화 방지: dropout + stochastic_depth + mixup + augmentation 동시 적용 시)
+dropout_rate: 0.1            # 0.3 → 0.1 (stochastic depth에 역할 위임)
+stochastic_depth: 0.2        # 1K모델 논문 추천 유지
+
+# ============ Mixup/CutMix ============
+# 문서 도메인 최적화: 69% grayscale → 강한 mixup 시 텍스트 겹침으로 가독성 손실
+# CutMix 위주로 운용 (영역 분할이라 텍스트 보존에 유리)
+use_mixup: true
+mixup_alpha: 0.3             # 0.6 → 0.3 (문서 텍스트 겹침 최소화)
+cutmix_alpha: 1.0            # 표준 CutMix 강도 유지
+mixup_prob: 0.5              # 1.0 → 0.8 (20% clean sample 노출, timm Mixup의 prob에 매핑)
+switch_prob: 0.5             # timm Mixup의 switch_prob: Mixup vs CutMix 50:50
+
+# ============ 옵티마이저 ============
 optimizer: "adamw"
-weight_decay: 0.1         # 데이터가 적으므로 0.05에서 상향 고려
 
-# 스케줄러
-warmup_epochs: 10    # Transformer는 warm-up이 중요합니다 (CNN: 5)
-warmup_start_factor: 0.01  # Warmup 시작 factor
-min_learning_rate: 1e-6
-scheduler_eta_min: 1e-6    # CosineAnnealing 최소 lr (= min_learning_rate)
+# ============ 스케줄러 ============
+scheduler: "cosine"          # "cosine" | "cosine_restart" (CosineAnnealingWarmRestarts)
+warmup_epochs: 5             # 1K모델 논문 추천
+warmup_start_factor: 0.01
+scheduler_eta_min: 1e-6
+# cosine_restart 사용 시 아래 파라미터 활성화 (scheduler: "cosine_restart"로 변경)
+T_0: 15                      # 첫 번째 restart 주기 (epoch 단위), 10~20 권장
+T_mult: 2                    # 후속 주기 배율 (1: 고정, 2: 점점 길어짐 — fine-tuning에 유리)
 
-# 데이터 로더
+# ============ 데이터 로더 ============
 drop_last: true
 pin_memory: true
 
-# 조기 종료
+# ============ 조기 종료 ============
 early_stopping:
+  enabled: true
+  patience: 20               # 10 → 15 (cosine 후반부 성능 점프 대비)
   monitor: "val_f1"
-  patience: 15
   mode: "max"
 
-# 체크포인트
+# ============ 체크포인트 ============
 checkpoint:
+  save_top_k: 3
   monitor: "val_f1"
   mode: "max"
-  save_top_k: 3
 
-# 로깅
+# ============ 로깅 ============
 log_interval: 20
+val_check_interval: 1.0
 
-# 검증
-val_check_interval: 0.5
+# ============ Loss ============
+loss: "label_smoothing"
+label_smoothing_value: 0.1   # 1K모델 논문 추천
+focal_gamma: 2.0             # Focal Loss gamma (loss: focal 시 사용)
 
-# Mixed Precision (메모리 절약)
+# ============ Mixed Precision ============
 use_amp: true

@@ -1,0 +1,32 @@
+# Ensemble Configuration: Swin K-Fold 5개 모델
+# run_009 ~ run_013 앙상블
+
+method: "soft_voting"  # soft_voting with weights
+
+# 체크포인트 경로 (K-Fold 5개)
+checkpoints:
+  - "checkpoints/20260221_run_009/epoch=48-val_f1=0.935.ckpt"
+  - "checkpoints/20260221_run_010/epoch=22-val_f1=0.923.ckpt"
+  - "checkpoints/20260221_run_011/epoch=55-val_f1=0.947.ckpt"
+  - "checkpoints/20260221_run_012/epoch=19-val_f1=0.911.ckpt"
+  - "checkpoints/20260221_run_013/epoch=22-val_f1=0.924.ckpt"
+
+# 가중치 (Val F1 Score 기반)
+weights:
+  - 0.935  # run_009
+  - 0.923  # run_010
+  - 0.947  # run_011 (최고 성능)
+  - 0.911  # run_012
+  - 0.924  # run_013
+
+# 출력 파일 경로
+output: "datasets_fin/submission/swin_kfold_5models_weighted.csv"
+
+# 데이터 설정 (모델 학습 시와 동일하게)
+data_config: "transformer_384"  # 384x384 이미지 사용
+
+# 모델 정보
+# - 모델: Swin Transformer Base 384x384
+# - K-Fold: 5-Fold Cross Validation
+# - 평균 Val F1: 0.928
+# - 앙상블 방법: Weighted Soft Voting

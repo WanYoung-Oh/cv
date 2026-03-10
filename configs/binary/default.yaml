@@ -1,0 +1,69 @@
+# ============================================================
+# 이진분류기 설정 (class 3 vs class 7)
+# confirmation_of_admission_and_discharge vs medical_outpatient_certificate
+# ============================================================
+
+# ============ 모델 ============
+model_name: "maxvit_base_tf_384.in1k"   # 소규모 데이터(200장)에 적합한 중간 크기 모델
+pretrained: true
+num_classes: 2                   # class 3 → label 0, class 7 → label 1
+
+# ============ 학습 하이퍼파라미터 ============
+learning_rate: 5e-5
+weight_decay: 0.05
+epochs: 80
+batch_size: 16
+num_workers: 4
+accumulate_grad_batches: 2       # 유효 배치 크기 = 32 (소규모 데이터 안정화)
+
+# ============ 정규화 (소규모 데이터 → 메인보다 강하게) ============
+dropout_rate: 0.4
+stochastic_depth: 0.1
+label_smoothing: 0.1
+
+# ============ Mixup/CutMix ============
+use_mixup: true
+mixup_alpha: 0.3
+cutmix_alpha: 1.0
+mixup_prob: 0.5
+switch_prob: 0.5
+
+# ============ K-Fold ============
+n_folds: 5
+
+# ============ 스케줄러 ============
+scheduler: "cosine"
+warmup_epochs: 5
+warmup_start_factor: 0.01
+scheduler_eta_min: 1e-6
+
+# ============ Early Stopping ============
+early_stopping_patience: 20
+
+# ============ Mixed Precision ============
+use_amp: true
+
+# ============ 체크포인트 저장 경로 ============
+checkpoint_dir: "checkpoints/binary"
+
+# ============================================================
+# apply_binary_ensemble.py 전용 설정
+# (train_binary_classifier.py에서는 사용하지 않음)
+# ============================================================
+
+# 이진분류기 체크포인트 (train 완료 후 업데이트)
+binary_checkpoints: []
+
+# 메인 분류기 체크포인트 (비어 있으면 ensemble.checkpoints 참조)
+main_checkpoints: []
+
+# TTA 설정
+use_tta: true
+tta_level: "light"   # "light" | "standard" | "heavy"
+
+# 출력 경로
+output: "datasets_fin/submission/submission_binary_ensemble.csv"
+
+# 레이블 매핑 (메인 분류기 출력 인덱스)
+class3_idx: 3   # binary output[:, 0] → 메인 클래스 3
+class7_idx: 7   # binary output[:, 1] → 메인 클래스 7

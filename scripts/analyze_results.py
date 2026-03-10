@@ -14,6 +14,7 @@ sys.path.insert(0, str(project_root))
 
 import argparse
 import logging
+import json
 from typing import Optional
 
 import torch
@@ -29,6 +30,37 @@ from src.data.datamodule import DocumentImageDataModule
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
+
+
+def find_champion_checkpoint(checkpoint_dir: Path) -> Optional[Path]:
+    """챔피언 모델 체크포인트 찾기
+    
+    Args:
+        checkpoint_dir: 체크포인트 베이스 디렉토리
+        
+    Returns:
+        챔피언 체크포인트 경로 또는 None
+    """
+    champion_dir = checkpoint_dir / "champion"
+    champion_checkpoint = champion_dir / "best_model.ckpt"
+    champion_info_path = champion_dir / "champion_info.json"
+    
+    if champion_checkpoint.exists():
+        if champion_info_path.exists():
+            with open(champion_info_path, 'r') as f:
+                champion_info = json.load(f)
+            
+            val_f1 = champion_info.get('val_f1', 0.0)
+            log.info("=" * 70)
+            log.info("🏆 챔피언 모델 발견")
+            log.info(f"   val_f1: {val_f1:.4f}")
+            log.info(f"   업데이트: {champion_info.get('updated_at', 'N/A')}")
+            log.info(f"   원본: {champion_info.get('checkpoint_path', 'N/A')}")
+            log.info("=" * 70)
+        
+        return champion_checkpoint
+    
+    return None
 
 
 def load_checkpoint(checkpoint_path: str) -> DocumentClassifierModule:
@@ -263,12 +295,32 @@ def find_misclassified_examples(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="모델 결과 분석")
+    parser = argparse.ArgumentParser(
+        description="모델 결과 분석 (Confusion Matrix, 클래스별 성능 등)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+사용 예시:
+  # 챔피언 모델 분석 (기본)
+  python scripts/analyze_results.py
+  
+  # 특정 체크포인트 분석 (경로에 '=' 있으면 따옴표 필수)
+  python scripts/analyze_results.py --checkpoint "checkpoints/20260219_run_008/epoch=32-val_f1=0.988.ckpt"
+  
+  # GPU 사용
+  python scripts/analyze_results.py --device cuda
+        """
+    )
     parser.add_argument(
         "--checkpoint",
         type=str,
-        required=True,
-        help="체크포인트 파일 경로"
+        default=None,
+        help="체크포인트 경로 (기본: 챔피언 모델 자동 탐색)"
+    )
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=str,
+        default="checkpoints",
+        help="체크포인트 베이스 디렉토리"
     )
     parser.add_argument(
         "--data-root",
@@ -297,12 +349,42 @@ def main():
 
     args = parser.parse_args()
 
+    # 체크포인트 경로 결정
+    checkpoint_path = args.checkpoint
+    
+    if not checkpoint_path:
+        # 챔피언 모델 자동 탐색
+        log.info("체크포인트 미지정 - 챔피언 모델 탐색 중...")
+        checkpoint_dir = Path(args.checkpoint_dir)
+        
+        if not checkpoint_dir.exists():
+            log.error(f"체크포인트 디렉토리를 찾을 수 없습니다: {checkpoint_dir}")
+            sys.exit(1)
+        
+        champion_checkpoint = find_champion_checkpoint(checkpoint_dir)
+        
+        if champion_checkpoint:
+            checkpoint_path = str(champion_checkpoint)
+            log.info(f"✅ 챔피언 모델 사용: {checkpoint_path}")
+        else:
+            log.error("챔피언 모델을 찾을 수 없습니다.")
+            log.error("다음 중 하나를 실행하세요:")
+            log.error("  1. --checkpoint 옵션으로 체크포인트 직접 지정")
+            log.error("  2. 먼저 모델을 학습하여 챔피언 모델 생성")
+            sys.exit(1)
+    else:
+        # 지정된 체크포인트 사용
+        if not Path(checkpoint_path).exists():
+            log.error(f"체크포인트 파일을 찾을 수 없습니다: {checkpoint_path}")
+            sys.exit(1)
+        log.info(f"지정된 체크포인트 사용: {checkpoint_path}")
+
     # 출력 디렉토리 생성
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 모델 로드
-    model = load_checkpoint(args.checkpoint)
+    model = load_checkpoint(checkpoint_path)
 
     # DataModule 생성 (baseline_aug 설정 사용)
     from omegaconf import OmegaConf

@@ -1,10 +1,21 @@
 # Document Image Classification - Hydra Config
 
+# Hydra 출력 디렉터리 (프로젝트 루트에 override 이름의 파일/폴더가 생기는 것 방지)
+hydra:
+  run:
+    dir: outputs/tmp/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: outputs/tmp/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+
 defaults:
-  - model: resnet34
+  - model: convnext_base
   - training: default
   - data: default
   - inference: default
+  - ensemble: default
+  - binary: default
+  - pseudo
 
 # 실험명
 experiment_name: "doc_image_classification"
@@ -32,13 +43,32 @@ data:
   sample_submission_csv: "sample_submission.csv"
   train_image_dir: "train/"
   test_image_dir: "test/"
+  
+  # K-Fold Cross Validation 설정
+  use_kfold: false  # K-Fold 사용 여부 (기본값: false, 단일 train/val split)
+  n_folds: 5        # Fold 개수 (use_kfold=true일 때만 사용)
+  fold_idx: 0       # 현재 Fold 인덱스 (0부터 시작, 0~4)
+
+  # 소수 클래스 Oversampling
+  oversample_minority_classes: false
+  minority_class_ids: null
+  minority_oversample_repeat: 1
+  minority_oversample_threshold: null
+
+  # 혼동 쌍 가중치 보정
+  confusion_pair_class_ids: null
+  confusion_pair_extra_weight: 1.0
+
+  # 클래스 가중치 소스
+  class_weights_source: "auto"
+  class_weights_csv: null
 
 # 모델 저장 경로
 checkpoint_dir: "checkpoints"
 logs_dir: "logs"
 
 # 재현성
-seed: 42
+seed: 43
 
 # 디바이스
 device: "cuda"
